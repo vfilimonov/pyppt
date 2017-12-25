@@ -31,6 +31,13 @@ TEMPTEXT = '--TO-BE-REMOVED--'
 
 
 ###############################################################################
+def _temp_fname():
+    """ Return a name of a temporary file """
+    f = tempfile.NamedTemporaryFile(delete=False)
+    f.close()
+    return f.name + '.png'
+
+
 def _get_application():
     """ Get reference to PowerPoint application """
     Application = client.Dispatch('PowerPoint.Application')
@@ -39,26 +46,30 @@ def _get_application():
     return Application
 
 
-def get_active_slide():
-    """ Get reference to active slide """
-    return _get_application().ActiveWindow.View.Slide
-
-
-def get_active_presentation():
+def _get_active_presentation():
     """ Get reference to active presentation """
     return _get_application().ActivePresentation
 
 
+def _get_slide(index=None):
+    """ Get reference to a slide with a given number (indexing starts from 1).
+        If number is not specified, then the active slide is returned.
+    """
+    if index is None:
+        return _get_application().ActiveWindow.View.Slide
+    else:
+        Presentation = _get_active_presentation()
+        return Presentation.Slides[index]
+
+
 ###############################################################################
-def fill_empty_placeholders(Slide=None, text='Temp'):
+def _fill_empty_placeholders(Slide, text='Temp'):
     """ Dirty hack: fill all empty placeholders with some text.
         Returns a list of objects that were filled, so then the text could be
         cleared from them (see empty_placeholders()).
         If we don't do this - when we insert a figure, it will take place of
         the placeholder, rather than using specified coordinates.
     """
-    if Slide is None:
-        Slide = get_active_slide()
     filled = []
     for ii in range(Slide.Shapes.Count):
         item = Slide.Shapes.Item(1+ii)
@@ -72,18 +83,16 @@ def fill_empty_placeholders(Slide=None, text='Temp'):
     return filled
 
 
-def empty_filled_placeholders(items):
+def _empty_filled_placeholders(items):
     """ Remove text from all placeholders that were filled by
-        fill_empty_placeholders()
+        _fill_empty_placeholders()
     """
     for item in items:
         item.TextFrame.TextRange.Text = ''
 
 
-def delete_empty_placeholders(Slide=None):
+def _delete_empty_placeholders(Slide):
     """ Delete all empty placeholders except Title and Subtitle """
-    if Slide is None:
-        Slide = get_active_slide()
     # we're going ro remove => iterate in reverse order
     for ii in range(Slide.Shapes.Count)[::-1]:
         item = Slide.Shapes.Item(1+ii)
@@ -91,14 +100,18 @@ def delete_empty_placeholders(Slide=None):
             ptype = item.PlaceholderFormat.type
             if ptype not in (ppPlaceholderTitle, ppPlaceholderSubtitle,
                              ppPlaceholderBody):
-                if item.TextFrame.TextRange.Length == 0:  # if empty
-                    item.delete()
+                try:
+                    if item.TextFrame.TextRange.Length == 0:  # if empty
+                        item.delete()
+                except:
+                    # Something happened...
+                    # Most likely this is not the one we want to delete
+                    pass
 
 
-def title_to_front(Slide=None):
+def title_to_front(slide=None):
     """ Bring title and subtitle to front """
-    if Slide is None:
-        Slide = get_active_slide()
+    Slide = _get_slide(slide)
     for ii in range(Slide.Shapes.Count):
         item = Slide.Shapes.Item(1+ii)
         if item.Type == msoPlaceholder:
@@ -109,12 +122,11 @@ def title_to_front(Slide=None):
 
 
 ###############################################################################
-def get_shape_positions(Slide=None):
+def get_shape_positions(slide=None):
     """ Get positions of all shapes in the Slide.
         Return list of lists of the format [x, y, w, h, type].
     """
-    if Slide is None:
-        Slide = get_active_slide()
+    Slide = _get_slide(slide)
     positions = []
     for ii in range(Slide.Shapes.Count):
         item = Slide.Shapes.Item(1+ii)
@@ -142,7 +154,7 @@ def get_image_positions(Slide=None, asarray=True, decimals=1):
 def get_slide_dimensions(Presentation=None):
     """ Get width and heights of the slide """
     if Presentation is None:
-        Presentation = get_active_presentation()
+        Presentation = _get_active_presentation()
     return (Presentation.PageSetup.SlideWidth,
             Presentation.PageSetup.SlideHeight)
 
@@ -150,7 +162,7 @@ def get_slide_dimensions(Presentation=None):
 def get_notes(Presentation=None):
     """ Extract notes for all slides from the presentation """
     if Presentation is None:
-        Presentation = get_active_presentation()
+        Presentation = _get_active_presentation()
     Slides = Presentation.Slides
     notes = []
     for ii in range(len(Slides)):
@@ -160,33 +172,10 @@ def get_notes(Presentation=None):
 
 
 ###############################################################################
-def parse_bbox(bbox):
+def _parse_bbox(bbox, Slide, keep_aspect=True):
     """ Human-readable bbox-dimensions"""
-    # Stub
-    return bbox
-
-
-###############################################################################
-def _temp_fname():
-    """ Return a name of a temporary file """
-    f = tempfile.NamedTemporaryFile(delete=False)
-    f.close()
-    return f.name + '.png'
-
-
-###############################################################################
-def add_figure(bbox, keep_aspect=True, delete_placeholders=True,
-               bbox_inches='tight', **kwargs):
-    """ Add current figure to the active slide """
-    # Save the figure to png
-    fname = _temp_fname()
-    if bbox_inches == 'tight':
-        # Usually is an overkill, but is needed sometimes...
-        plt.tight_layout()
-    plt.savefig(fname, bbox_inches=bbox_inches, **kwargs)
-
-    # Parse bbox name if necessary
-    bbox = parse_bbox(bbox)
+    if bbox is None:
+        pass
 
     # If keep_aspect:
     if keep_aspect:
@@ -200,32 +189,53 @@ def add_figure(bbox, keep_aspect=True, delete_placeholders=True,
         else:
             neww = bh * aspect_fig
             bbox = [bx + bw/2. - neww/2., by, neww, bh]
+    return bbox
+
+
+###############################################################################
+def add_figure(bbox=None, slide=None, keep_aspect=True, delete_placeholders=True,
+               bbox_inches='tight', **kwargs):
+    """ Add current figure to the active slide (or slide with a given number).
+
+    """
+    # Save the figure to png
+    fname = _temp_fname()
+    if bbox_inches == 'tight':
+        # Usually is an overkill, but is needed sometimes...
+        plt.tight_layout()
+    plt.savefig(fname, bbox_inches=bbox_inches, **kwargs)
+
+    Slide = _get_slide(slide)
+
+    # Parse bbox name if necessary
+    bbox = _parse_bbox(bbox, Slide, keep_aspect=keep_aspect)
 
     # Now insert to PowerPoint
-    Slide = get_active_slide()
     if delete_placeholders:
-        delete_empty_placeholders(Slide)
+        _delete_empty_placeholders(Slide)
     else:
-        items = fill_empty_placeholders(Slide)
+        items = _fill_empty_placeholders(Slide)
     shape = Slide.Shapes.AddPicture(FileName=fname, LinkToFile=False,
                                     SaveWithDocument=True, Left=bbox[0],
                                     Top=bbox[1], Width=bbox[2], Height=bbox[3])
-    if not (shape.Left == bbox[0] and shape.Top == bbox[1] and
-            shape.Width == bbox[2] and shape.Height == bbox[3]):
+    filled_bbox = [shape.Left, shape.Top, shape.Width, shape.Height]
+    # Check if the bbox is correctly filled.
+    # Should happen always...
+    if np.max(np.abs(np.array(bbox)-np.array(filled_bbox))) > 0.1:
         warnings.warn('BBox of the inserted figure was not respected: '
                       '(%.1f, %.1f, %.1f %.1f) instead of (%.1f, %.1f, %.1f %.1f)'
                       % (shape.Left, shape.Top, shape.Width, shape.Height,
                          bbox[0], bbox[1], bbox[2], bbox[3]))
     if not delete_placeholders:
-        empty_filled_placeholders(items)
+        _empty_filled_placeholders(items)
 
 
 ###############################################################################
-def replace_figure(picid=-1, keep_aspect=True, **kwargs):
+def replace_figure(picid=-1, slide=None, keep_aspect=True, **kwargs):
     """ Delete corresponding image from the slide and add a new one on the same
         place
     """
-    Slide = get_active_slide()
+    Slide = _get_slide(slide)
     # Get all images
     shapes = []
     for ii in range(Slide.Shapes.Count):
