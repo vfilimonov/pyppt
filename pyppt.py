@@ -24,6 +24,11 @@ msoPlaceholder = 14
 ppPlaceholderTitle = 1
 ppPlaceholderBody = 2
 ppPlaceholderSubtitle = 4
+ppPlaceholderObject = 7
+ppPlaceholderBitmap = 9
+ppPlaceholderPicture = 18
+pp_titles = (ppPlaceholderTitle, ppPlaceholderSubtitle, ppPlaceholderBody)
+pp_pictures = (ppPlaceholderObject, ppPlaceholderBitmap, ppPlaceholderPicture)
 # MsoZOrderCmd: https://msdn.microsoft.com/en-us/library/aa432726.aspx
 msoBringToFront = 0
 # Temporary text to be filled in empty placeholders
@@ -62,6 +67,28 @@ def _get_slide(index=None):
         return Presentation.Slides[index]
 
 
+def _shapes(Slide, types=None, reverse=False):
+    """ Generator: yields Shapes from the given slide.
+        If types are provided, then Shapes of only given types will be yielded.
+        If reverse, then shapes will be yielded in reverse order.
+    """
+    rng = range(Slide.Shapes.Count)
+    if reverse:
+        rng = rng[::-1]
+    for ii in rng:
+        item = Slide.Shapes.Item(1+ii)
+        if types is None:
+            yield item
+        elif item.Type in types:
+            yield item
+
+
+def _placeholders(Slide, reverse=False):
+    """ Wrapper for the _shapes to yield only placeholders. """
+    for item in _shapes(Slide, [msoPlaceholder], reverse=reverse):
+        yield item
+
+
 ###############################################################################
 def _fill_empty_placeholders(Slide, text='Temp'):
     """ Dirty hack: fill all empty placeholders with some text.
@@ -70,16 +97,18 @@ def _fill_empty_placeholders(Slide, text='Temp'):
         If we don't do this - when we insert a figure, it will take place of
         the placeholder, rather than using specified coordinates.
     """
+    placeholders = [p for p in _placeholders(Slide)
+                    if p.PlaceholderFormat.type not in pp_titles]
     filled = []
-    for ii in range(Slide.Shapes.Count):
-        item = Slide.Shapes.Item(1+ii)
-        if item.Type == msoPlaceholder:
-            ptype = item.PlaceholderFormat.type
-            if ptype not in (ppPlaceholderTitle, ppPlaceholderSubtitle,
-                             ppPlaceholderBody):
-                if item.TextFrame.TextRange.Length == 0:  # if empty
-                    item.TextFrame.TextRange.Text = TEMPTEXT
-                    filled.append(item)
+    for item in placeholders:
+        try:
+            if item.TextFrame.TextRange.Length == 0:  # if empty
+                item.TextFrame.TextRange.Text = TEMPTEXT
+                filled.append(item)
+        except:
+            # Something happened...
+            # Most likely this is not the one we want to fill
+            pass
     return filled
 
 
@@ -94,53 +123,44 @@ def _empty_filled_placeholders(items):
 def _delete_empty_placeholders(Slide):
     """ Delete all empty placeholders except Title and Subtitle """
     # we're going ro remove => iterate in reverse order
-    for ii in range(Slide.Shapes.Count)[::-1]:
-        item = Slide.Shapes.Item(1+ii)
-        if item.Type == msoPlaceholder:
-            ptype = item.PlaceholderFormat.type
-            if ptype not in (ppPlaceholderTitle, ppPlaceholderSubtitle,
-                             ppPlaceholderBody):
-                try:
-                    if item.TextFrame.TextRange.Length == 0:  # if empty
-                        item.delete()
-                except:
-                    # Something happened...
-                    # Most likely this is not the one we want to delete
-                    pass
+    placeholders = [p for p in _placeholders(Slide)
+                    if p.PlaceholderFormat.type not in pp_titles]
+    for item in placeholders[::-1]:
+        try:
+            if item.TextFrame.TextRange.Length == 0:  # if empty
+                item.delete()
+        except:
+            # Something happened...
+            # Most likely this is not the one we want to delete
+            pass
 
 
-def title_to_front(slide=None):
+def title_to_front(slide_no=None):
     """ Bring title and subtitle to front """
-    Slide = _get_slide(slide)
-    for ii in range(Slide.Shapes.Count):
-        item = Slide.Shapes.Item(1+ii)
-        if item.Type == msoPlaceholder:
-            ptype = item.PlaceholderFormat.type
-            if ptype not in (ppPlaceholderTitle, ppPlaceholderSubtitle,
-                             ppPlaceholderBody):
-                item.ZOrder(msoBringToFront)
+    Slide = _get_slide(slide_no)
+    titles = [p for p in _placeholders(Slide)
+              if p.PlaceholderFormat.type in pp_titles]
+    for item in titles:
+        item.ZOrder(msoBringToFront)
 
 
 ###############################################################################
-def get_shape_positions(slide=None):
-    """ Get positions of all shapes in the Slide.
+def get_shape_positions(slide_no=None):
+    """ Get positions of all shapes in the slide.
         Return list of lists of the format [x, y, w, h, type].
     """
-    Slide = _get_slide(slide)
-    positions = []
-    for ii in range(Slide.Shapes.Count):
-        item = Slide.Shapes.Item(1+ii)
+    for item in _shapes(_get_slide(slide_no), reverse=False):
         positions.append([item.Left, item.Top, item.Width, item.Height, item.Type])
     return positions
 
 
-def get_image_positions(Slide=None, asarray=True, decimals=1):
-    """ Get positions of all images in the Slide. If necessary, rounds
+def get_image_positions(slide_no=None, asarray=True, decimals=1):
+    """ Get positions of all images in the slide. If necessary, rounds
         coordinates to a given decimals (if "decimals" is not None)
         Return list of lists of the format [x, y, w, h].
     """
-    positions = get_shape_positions(Slide)
-    # Kepp only images
+    positions = get_shape_positions(slide_no)
+    # Keep only images
     positions = [p[:-1] for p in positions if p[-1] == msoPicture]
     if asarray:
         if decimals is not None:
@@ -193,8 +213,8 @@ def _parse_bbox(bbox, Slide, keep_aspect=True):
 
 
 ###############################################################################
-def add_figure(bbox=None, slide=None, keep_aspect=True, delete_placeholders=True,
-               bbox_inches='tight', **kwargs):
+def add_figure(bbox=None, slide_no=None, keep_aspect=True,
+               delete_placeholders=True, bbox_inches='tight', **kwargs):
     """ Add current figure to the active slide (or slide with a given number).
 
     """
@@ -205,7 +225,7 @@ def add_figure(bbox=None, slide=None, keep_aspect=True, delete_placeholders=True
         plt.tight_layout()
     plt.savefig(fname, bbox_inches=bbox_inches, **kwargs)
 
-    Slide = _get_slide(slide)
+    Slide = _get_slide(slide_no)
 
     # Parse bbox name if necessary
     bbox = _parse_bbox(bbox, Slide, keep_aspect=keep_aspect)
@@ -231,11 +251,11 @@ def add_figure(bbox=None, slide=None, keep_aspect=True, delete_placeholders=True
 
 
 ###############################################################################
-def replace_figure(picid=-1, slide=None, keep_aspect=True, **kwargs):
+def replace_figure(pic_no=-1, slide_no=None, keep_aspect=True, **kwargs):
     """ Delete corresponding image from the slide and add a new one on the same
         place
     """
-    Slide = _get_slide(slide)
+    Slide = _get_slide(slide_no)
     # Get all images
     shapes = []
     for ii in range(Slide.Shapes.Count):
@@ -243,10 +263,10 @@ def replace_figure(picid=-1, slide=None, keep_aspect=True, **kwargs):
         if item.Type == msoPicture:
             shapes.append(shape)
     # Select required shape
-    if len(shapes) < picid:
+    if len(shapes) < pic_no:
         raise ValueError('Picture index is out of range')
     else:
-        shape = shapes[picid]
+        shape = shapes[pic_no]
     # Save position
     pos = [shape.Left, shape.Top, shape.Width, shape.Height]
     # Delete
