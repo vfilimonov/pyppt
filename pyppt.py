@@ -83,7 +83,7 @@ ppPlaceholderTypeInt = {v: k for k, v in ppPlaceholderType.items()}
 msoZOrderCmdInt = {v: k for k, v in msoZOrderCmd.items()}
 
 # Temporary text to be filled in empty placeholders
-TEMPTEXT = '--TO-BE-REMOVED--'
+_TEMPTEXT = '--TO-BE-REMOVED--'
 
 
 ###############################################################################
@@ -151,7 +151,7 @@ def _fill_empty_placeholders(Slide, text='Temp'):
     for item in placeholders:
         try:
             if item.TextFrame.TextRange.Length == 0:  # if empty
-                item.TextFrame.TextRange.Text = TEMPTEXT
+                item.TextFrame.TextRange.Text = _TEMPTEXT
                 filled.append(item)
         except:
             # Something happened...
@@ -212,6 +212,23 @@ def set_subtitle(subtitle, slide_no=None):
             p.TextFrame.TextRange.Text = subtitle
             return
     warnings.warn('No subtitle placeholders were found on the given slide')
+
+
+def add_slide(slide_no=None, layout_as=None):
+    """ Add slide after slide number "slide_no" with the layout as in the slide
+        number "layout_as".
+        If "slide_no" is None, new slide will be added after the active one.
+        If "layout_as" is None, new slide will have layout as the active one.
+        Returns the number of the added slide.
+    """
+    if slide_no is None:
+        slide_no = _get_slide().SlideNumber
+    if layout_as is None:
+        layout_as = slide_no
+    Presentation = _get_active_presentation()
+    pptLayout = Presentation.Slides[layout_as - 1].CustomLayout
+    Slide = Presentation.Slides.AddSlide(slide_no + 1, pptLayout)
+    return Slide.SlideNumber
 
 
 ###############################################################################
@@ -284,8 +301,7 @@ def _parse_bbox(bbox, Slide, keep_aspect=True):
 ###############################################################################
 def add_figure(bbox=None, slide_no=None, keep_aspect=True,
                delete_placeholders=True, bbox_inches='tight', **kwargs):
-    """ Add current figure to the active slide (or slide with a given number).
-
+    """ Add current figure to the active slide (or a slide with a given number).
     """
     # Save the figure to png
     fname = _temp_fname()
