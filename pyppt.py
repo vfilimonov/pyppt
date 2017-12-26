@@ -18,19 +18,70 @@ __email__ = 'vladimir.a.filimonov@gmail.com'
 # See also VBA reference: https://github.com/OfficeDev/VBA-content
 ###############################################################################
 # MsoShapeType: https://msdn.microsoft.com/en-us/library/aa432678.aspx
-msoPicture = 13
-msoPlaceholder = 14
+msoShapeType = {'msoShapeTypeMixed': -2,
+                'msoAutoShape': 1,
+                'msoCallout': 2,
+                'msoChart': 3,
+                'msoComment': 4,
+                'msoFreeform': 5,
+                'msoGroup': 6,
+                'msoEmbeddedOLEObject': 7,
+                'msoFormControl': 8,
+                'msoLine': 9,
+                'msoLinkedOLEObject': 10,
+                'msoLinkedPicture': 11,
+                'msoOLEControlObject': 12,
+                'msoPicture': 13,
+                'msoPlaceholder': 14,
+                'msoTextEffect': 15,
+                'msoMedia': 16,
+                'msoTextBox': 17,
+                'msoScriptAnchor': 18,
+                'msoTable': 19,
+                'msoCanvas': 20,
+                'msoDiagram': 21,
+                'msoInk': 22,
+                'msoInkComment': 23,
+                'msoIgxGraphic': 24}
+
 # PpPlaceholderType: https://msdn.microsoft.com/en-us/VBA/PowerPoint-VBA/articles/ppplaceholdertype-enumeration-powerpoint
-ppPlaceholderTitle = 1
-ppPlaceholderBody = 2
-ppPlaceholderSubtitle = 4
-ppPlaceholderObject = 7
-ppPlaceholderBitmap = 9
-ppPlaceholderPicture = 18
-pp_titles = (ppPlaceholderTitle, ppPlaceholderSubtitle, ppPlaceholderBody)
-pp_pictures = (ppPlaceholderObject, ppPlaceholderBitmap, ppPlaceholderPicture)
+ppPlaceholderType = {'ppPlaceholderMixed': -2,
+                     'ppPlaceholderTitle': 1,
+                     'ppPlaceholderBody': 2,
+                     'ppPlaceholderCenterTitle': 3,
+                     'ppPlaceholderSubtitle': 4,
+                     'ppPlaceholderVerticalTitle': 5,
+                     'ppPlaceholderVerticalBody': 6,
+                     'ppPlaceholderObject': 7,
+                     'ppPlaceholderChart': 8,
+                     'ppPlaceholderBitmap': 9,
+                     'ppPlaceholderMediaClip': 10,
+                     'ppPlaceholderOrgChart': 11,
+                     'ppPlaceholderTable': 12,
+                     'ppPlaceholderSlideNumber': 13,
+                     'ppPlaceholderHeader': 14,
+                     'ppPlaceholderFooter': 15,
+                     'ppPlaceholderDate': 16,
+                     'ppPlaceholderVerticalObject': 17,
+                     'ppPlaceholderPicture': 18}
+
+
+pp_titles = [ppPlaceholderType['ppPlaceholder' + _] for _ in ('Title', 'Subtitle', 'Body')]
+pp_pictures = [ppPlaceholderType['ppPlaceholder' + _] for _ in ('Object', 'Bitmap', 'Picture')]
+
 # MsoZOrderCmd: https://msdn.microsoft.com/en-us/library/aa432726.aspx
-msoBringToFront = 0
+msoZOrderCmd = {'msoBringToFront': 0,
+                'msoSendToBack': 1,
+                'msoBringForward': 2,
+                'msoSendBackward': 3,
+                'msoBringInFrontOfText': 4,
+                'msoSendBehindText': 5}
+
+# For reverse lookup
+msoShapeTypeInt = {v: k for k, v in msoShapeType.items()}
+ppPlaceholderTypeInt = {v: k for k, v in ppPlaceholderType.items()}
+msoZOrderCmdInt = {v: k for k, v in msoZOrderCmd.items()}
+
 # Temporary text to be filled in empty placeholders
 TEMPTEXT = '--TO-BE-REMOVED--'
 
@@ -56,37 +107,34 @@ def _get_active_presentation():
     return _get_application().ActivePresentation
 
 
-def _get_slide(index=None):
+def _get_slide(slide_no=None):
     """ Get reference to a slide with a given number (indexing starts from 1).
         If number is not specified, then the active slide is returned.
     """
-    if index is None:
+    if slide_no is None:
         return _get_application().ActiveWindow.View.Slide
     else:
         Presentation = _get_active_presentation()
-        return Presentation.Slides[index]
+        return Presentation.Slides[slide_no - 1]
 
 
-def _shapes(Slide, types=None, reverse=False):
-    """ Generator: yields Shapes from the given slide.
-        If types are provided, then Shapes of only given types will be yielded.
-        If reverse, then shapes will be yielded in reverse order.
+def _shapes(Slide, types=None):
+    """ Return all Shapes from the given slide.
+        If types are provided, then Shapes of only given types will be returned.
     """
-    rng = range(Slide.Shapes.Count)
-    if reverse:
-        rng = rng[::-1]
-    for ii in rng:
-        item = Slide.Shapes.Item(1+ii)
-        if types is None:
-            yield item
-        elif item.Type in types:
-            yield item
+    if Slide is None or isinstance(Slide, (int, long)):
+        # Infer from the number
+        Slide = _get_slide(Slide)
+    shapes = [Slide.Shapes.Item(1+ii) for ii in range(Slide.Shapes.Count)]
+    if types is not None:
+        types = [msoShapeType[_] for _ in types]
+        shapes = [s for s in shapes if s.Type in types]
+    return shapes
 
 
-def _placeholders(Slide, reverse=False):
-    """ Wrapper for the _shapes to yield only placeholders. """
-    for item in _shapes(Slide, [msoPlaceholder], reverse=reverse):
-        yield item
+def _placeholders(Slide):
+    """ Wrapper for the _shapes to return only placeholders. """
+    return _shapes(Slide, ['msoPlaceholder'])
 
 
 ###############################################################################
@@ -135,13 +183,14 @@ def _delete_empty_placeholders(Slide):
             pass
 
 
+###############################################################################
 def title_to_front(slide_no=None):
     """ Bring title and subtitle to front """
-    Slide = _get_slide(slide_no)
-    titles = [p for p in _placeholders(Slide)
+    titles = [p for p in _placeholders(_get_slide(slide_no))
               if p.PlaceholderFormat.type in pp_titles]
     for item in titles:
-        item.ZOrder(msoBringToFront)
+        item.ZOrder(msoZOrderCmd['msoBringToFront'])
+
 
 
 ###############################################################################
@@ -149,9 +198,8 @@ def get_shape_positions(slide_no=None):
     """ Get positions of all shapes in the slide.
         Return list of lists of the format [x, y, w, h, type].
     """
-    for item in _shapes(_get_slide(slide_no), reverse=False):
-        positions.append([item.Left, item.Top, item.Width, item.Height, item.Type])
-    return positions
+    return [[item.Left, item.Top, item.Width, item.Height, item.Type]
+            for item in _shapes(_get_slide(slide_no))]
 
 
 def get_image_positions(slide_no=None, asarray=True, decimals=1):
@@ -161,7 +209,7 @@ def get_image_positions(slide_no=None, asarray=True, decimals=1):
     """
     positions = get_shape_positions(slide_no)
     # Keep only images
-    positions = [p[:-1] for p in positions if p[-1] == msoPicture]
+    positions = [p[:-1] for p in positions if p[-1] == msoShapeType['msoPicture']]
     if asarray:
         if decimals is not None:
             return np.round(np.array(positions), decimals=decimals)
@@ -252,15 +300,13 @@ def add_figure(bbox=None, slide_no=None, keep_aspect=True,
 
 ###############################################################################
 def replace_figure(pic_no=-1, slide_no=None, keep_aspect=True, **kwargs):
-    """ Delete corresponding image from the slide and add a new one on the same
-        place
-    """
+    """ Delete an image from the slide and add a new one on the same place """
     Slide = _get_slide(slide_no)
     # Get all images
     shapes = []
     for ii in range(Slide.Shapes.Count):
         item = Slide.Shapes.Item(1+ii)
-        if item.Type == msoPicture:
+        if item.Type == msoShapeType['msoPicture']:
             shapes.append(shape)
     # Select required shape
     if len(shapes) < pic_no:
