@@ -192,6 +192,27 @@ def title_to_front(slide_no=None):
         item.ZOrder(msoZOrderCmd['msoBringToFront'])
 
 
+def set_title(title, slide_no=None):
+    """ Set title for the slide (active or of a given number).
+        If slide contain multiple Placeholder/Title objects, only first one is set.
+    """
+    for p in _placeholders(_get_slide(slide_no)):
+        if p.PlaceholderFormat.type == ppPlaceholderType['ppPlaceholderTitle']:
+            p.TextFrame.TextRange.Text = title
+            return
+    warnings.warn('No title placeholders were found on the given slide')
+
+
+def set_subtitle(subtitle, slide_no=None):
+    """ Set title for the slide (active or of a given number).
+        If slide contain multiple Placeholder/Title objects, only first one is set.
+    """
+    for p in _placeholders(_get_slide(slide_no)):
+        if p.PlaceholderFormat.type == ppPlaceholderType['ppPlaceholderSubtitle']:
+            p.TextFrame.TextRange.Text = subtitle
+            return
+    warnings.warn('No subtitle placeholders were found on the given slide')
+
 
 ###############################################################################
 def get_shape_positions(slide_no=None):
