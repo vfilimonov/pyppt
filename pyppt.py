@@ -8,6 +8,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import warnings
 import tempfile
+import os
 
 __version__ = '0.1'
 __author__ = 'Vladimir Filimonov'
@@ -85,13 +86,29 @@ msoZOrderCmdInt = {v: k for k, v in msoZOrderCmd.items()}
 # Temporary text to be filled in empty placeholders
 _TEMPTEXT = '--TO-BE-REMOVED--'
 
+###############################################################################
+# Presets for the image positions in the format [x, y, width, height]
+# If all values are in the range [0, 1], then they are treated as fractions
+# from the slide width and height, otherwise, they will be treated as values
+# in pixels
+###############################################################################
+presets = {'Center': [0.0415, 0.227, 0.917, 0.716],
+           'CenterL': [0.0415, 0.153, 0.917, 0.716],
+           'CenterXL': [0.0415, 0.049, 0.917, 0.888],
+           'CenterXXL': [0, 0, 1., 1.],
+           'Full': [0, 0, 1., 1.]}
 
+
+###############################################################################
+# General methods for accessing presentation and slides
 ###############################################################################
 def _temp_fname():
     """ Return a name of a temporary file """
     f = tempfile.NamedTemporaryFile(delete=False)
     f.close()
-    return f.name + '.png'
+    name = f.name
+    os.remove(name)
+    return name + '.png'
 
 
 def _get_application():
@@ -119,6 +136,8 @@ def _get_slide(slide_no=None):
 
 
 ###############################################################################
+# Convenience methods for working with placeholders
+###############################################################################
 def _shapes(Slide, types=None):
     """ Return all Shapes from the given slide.
         If types are provided, then Shapes of only given types will be returned.
@@ -136,6 +155,17 @@ def _shapes(Slide, types=None):
 def _placeholders(Slide):
     """ Wrapper for the _shapes to return only placeholders. """
     return _shapes(Slide, ['msoPlaceholder'])
+
+
+def _placeholders_pictures(Slide, empty=False):
+    """ List of all placeholders for pictures.
+        If empty is True - keep only empty placeholders
+    """
+    pics = [p for p in _placeholders(Slide)
+            if p.PlaceholderFormat.type in pp_pictures]
+    if empty:
+        pics = [p for p in pics if _is_placeholder_empty(p)]
+    return pics
 
 
 def _has_textframe(obj):
@@ -160,6 +190,8 @@ def _empty_placeholders(Slide):
     return [s for s in _placeholders(Slide) if _is_placeholder_empty(s)]
 
 
+###############################################################################
+# ...treating empty placeholders
 ###############################################################################
 def _fill_empty_placeholders(Slide):
     """ Dirty hack: fill all empty placeholders with some text.
@@ -192,6 +224,8 @@ def _delete_empty_placeholders(Slide):
             p.delete()
 
 
+###############################################################################
+# Titles and Subtitles
 ###############################################################################
 def title_to_front(slide_no=None):
     """ Bring title and subtitle to front """
@@ -241,6 +275,8 @@ def add_slide(slide_no=None, layout_as=None):
 
 
 ###############################################################################
+# Extracting metadata
+###############################################################################
 def get_shape_positions(slide_no=None):
     """ Get positions of all shapes in the slide.
         Return list of lists of the format [x, y, w, h, type].
@@ -287,10 +323,15 @@ def get_notes(Presentation=None):
 
 
 ###############################################################################
-def _parse_bbox(bbox, Slide, keep_aspect=True):
-    """ Human-readable bbox-dimensions"""
-    if bbox is None:
-        pass
+# Core functionality
+###############################################################################
+def _parse_bbox(bbox, keep_aspect=True):
+    """ Human-readable bbox-dimensions."""
+    if isinstance(bbox, str):  # Use preset
+        bbox = presets[bbox]
+        if all([0 <= _ <= 1 for _ in bbox]):
+            W, H = get_slide_dimensions()
+            bbox = [bbox[0] * W, bbox[1] * H, bbox[2] * W, bbox[3] * H]
 
     # If keep_aspect:
     if keep_aspect:
@@ -308,40 +349,75 @@ def _parse_bbox(bbox, Slide, keep_aspect=True):
 
 
 ###############################################################################
-def add_figure(bbox=None, slide_no=None, keep_aspect=True,
-               delete_placeholders=True, bbox_inches='tight', **kwargs):
+def add_figure(bbox=None, slide_no=None, keep_aspect=True, tight=True,
+               delete_placeholders=True, **kwargs):
     """ Add current figure to the active slide (or a slide with a given number).
+
+        Parameters:
+            bbox - Bounding box for the image in the format:
+                    - None - the first empty image placeholder will be used, if
+                             no such placeholders are found, then the 'Center'
+                             value will be used.
+                    - list of coordinates [x, y, width, height]
+                    - string: 'Center', 'Left', 'Right', 'TopLeft', 'TopRight',
+                      'BottomLeft', 'BottomRight', 'CenterL', 'CenterXL', 'Full'
+                      based on the presets, that could be modified
+            slide_no - number of the slide (stating from 1), where to add image.
+                       if not specified (None), active slide will be used.
+            keep_aspect - if True, then the aspect ratio of the image will be
+                          preserved, otherwise the image will shrink to fit bbox.
+            tight - if True, then tight_layout() will be used
+            delete_placeholders - if True, then all placeholders will be deleted
+            **kwargs - to be passed to plt.savefig()
     """
-    # Save the figure to png
+    # Save the figure to png in temporary directory
     fname = _temp_fname()
-    if bbox_inches == 'tight':
+    if tight:
         # Usually is an overkill, but is needed sometimes...
         plt.tight_layout()
-    plt.savefig(fname, bbox_inches=bbox_inches, **kwargs)
+        plt.savefig(fname, bbox_inches='tight', **kwargs)
+    else:
+        plt.savefig(fname, **kwargs)
 
     Slide = _get_slide(slide_no)
 
     # Parse bbox name if necessary
-    bbox = _parse_bbox(bbox, Slide, keep_aspect=keep_aspect)
+    use_placeholder = False
+    if bbox is None:
+        # Try to get position of the first empty placeholder for pictures
+        pictures = _placeholders_pictures(Slide, empty=True)
+        try:
+            item = pictures[0]
+            bbox = [item.Left, item.Top, item.Width, item.Height]
+            use_placeholder = True
+        except IndexError:
+            # If no placholders: use 'Center'
+            bbox = 'Center'
+    bbox = _parse_bbox(bbox, keep_aspect=keep_aspect)
 
     # Now insert to PowerPoint
-    if delete_placeholders:
-        _delete_empty_placeholders(Slide)
-    else:
-        items = _fill_empty_placeholders(Slide)
+    if not use_placeholder:
+        if delete_placeholders:
+            _delete_empty_placeholders(Slide)
+        else:
+            items = _fill_empty_placeholders(Slide)
     shape = Slide.Shapes.AddPicture(FileName=fname, LinkToFile=False,
                                     SaveWithDocument=True, Left=bbox[0],
                                     Top=bbox[1], Width=bbox[2], Height=bbox[3])
     filled_bbox = [shape.Left, shape.Top, shape.Width, shape.Height]
+
     # Check if the bbox is correctly filled.
-    # Should happen always...
     if np.max(np.abs(np.array(bbox)-np.array(filled_bbox))) > 0.1:
+        # Should never happen...
         warnings.warn('BBox of the inserted figure was not respected: '
                       '(%.1f, %.1f, %.1f %.1f) instead of (%.1f, %.1f, %.1f %.1f)'
                       % (shape.Left, shape.Top, shape.Width, shape.Height,
                          bbox[0], bbox[1], bbox[2], bbox[3]))
-    if not delete_placeholders:
+
+    # Clean-up
+    if not use_placeholder and not delete_placeholders:
         _revert_filled_placeholders(items)
+    os.remove(fname)
 
 
 ###############################################################################
