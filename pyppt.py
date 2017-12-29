@@ -118,6 +118,7 @@ def _get_slide(slide_no=None):
         return Presentation.Slides[slide_no - 1]
 
 
+###############################################################################
 def _shapes(Slide, types=None):
     """ Return all Shapes from the given slide.
         If types are provided, then Shapes of only given types will be returned.
@@ -137,30 +138,45 @@ def _placeholders(Slide):
     return _shapes(Slide, ['msoPlaceholder'])
 
 
+def _has_textframe(obj):
+    """ Check if placeholder has TextFrame """
+    return hasattr(obj, 'TextFrame') and hasattr(obj.TextFrame, 'TextRange')
+
+
+def _is_placeholder_empty(obj):
+    """ Check if placeholder is empty """
+    if obj.PlaceholderFormat.ContainedType == msoShapeType['msoAutoShape']:
+        # Either a content/text or another type with no content
+        if _has_textframe(obj):
+            if obj.TextFrame.TextRange.Length == 0:
+                return True
+        else:
+            return True
+    return False
+
+
+def _empty_placeholders(Slide):
+    """ Return a list of empty placeholders """
+    return [s for s in _placeholders(Slide) if _is_placeholder_empty(s)]
+
+
 ###############################################################################
-def _fill_empty_placeholders(Slide, text='Temp'):
+def _fill_empty_placeholders(Slide):
     """ Dirty hack: fill all empty placeholders with some text.
         Returns a list of objects that were filled, so then the text could be
         cleared from them (see empty_placeholders()).
-        If we don't do this - when we insert a figure, it will take place of
-        the placeholder, rather than using specified coordinates.
+        If we don't do this - when we insert a figure, placeholder will disappear.
     """
-    placeholders = [p for p in _placeholders(Slide)
-                    if p.PlaceholderFormat.type not in pp_titles]
     filled = []
-    for item in placeholders:
-        try:
-            if item.TextFrame.TextRange.Length == 0:  # if empty
-                item.TextFrame.TextRange.Text = _TEMPTEXT
-                filled.append(item)
-        except:
-            # Something happened...
-            # Most likely this is not the one we want to fill
-            pass
+    for p in _empty_placeholders(Slide):
+        if p.PlaceholderFormat.type not in pp_titles:
+            if _has_textframe(p):
+                p.TextFrame.TextRange.Text = _TEMPTEXT
+                filled.append(p)
     return filled
 
 
-def _empty_filled_placeholders(items):
+def _revert_filled_placeholders(items):
     """ Remove text from all placeholders that were filled by
         _fill_empty_placeholders()
     """
@@ -171,16 +187,9 @@ def _empty_filled_placeholders(items):
 def _delete_empty_placeholders(Slide):
     """ Delete all empty placeholders except Title and Subtitle """
     # we're going ro remove => iterate in reverse order
-    placeholders = [p for p in _placeholders(Slide)
-                    if p.PlaceholderFormat.type not in pp_titles]
-    for item in placeholders[::-1]:
-        try:
-            if item.TextFrame.TextRange.Length == 0:  # if empty
-                item.delete()
-        except:
-            # Something happened...
-            # Most likely this is not the one we want to delete
-            pass
+    for p in _empty_placeholders(Slide)[::-1]:
+        if p.PlaceholderFormat.type not in pp_titles:
+            p.delete()
 
 
 ###############################################################################
@@ -332,7 +341,7 @@ def add_figure(bbox=None, slide_no=None, keep_aspect=True,
                       % (shape.Left, shape.Top, shape.Width, shape.Height,
                          bbox[0], bbox[1], bbox[2], bbox[3]))
     if not delete_placeholders:
-        _empty_filled_placeholders(items)
+        _revert_filled_placeholders(items)
 
 
 ###############################################################################
