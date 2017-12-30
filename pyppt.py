@@ -90,13 +90,37 @@ _TEMPTEXT = '--TO-BE-REMOVED--'
 # Presets for the image positions in the format [x, y, width, height]
 # If all values are in the range [0, 1], then they are treated as fractions
 # from the slide width and height, otherwise, they will be treated as values
-# in pixels
+# in pixels.
+# Preset names are case-insensitive.
 ###############################################################################
-presets = {'Center': [0.0415, 0.227, 0.917, 0.716],
-           'CenterL': [0.0415, 0.153, 0.917, 0.716],
-           'CenterXL': [0.0415, 0.049, 0.917, 0.888],
-           'CenterXXL': [0, 0, 1., 1.],
-           'Full': [0, 0, 1., 1.]}
+presets = {'center': [0.0415, 0.227, 0.917, 0.716],
+           'full': [0, 0, 1., 1.]}
+
+preset_sizes = {'': [0.0415, 0.227, 0.917, 0.716],
+                'L': [0.0415, 0.153, 0.917, 0.790],
+                'XL': [0.0415, 0.049, 0.917, 0.888],
+                'XXL': [0, 0, 1., 1.]}
+
+preset_modifiers = {'center': [0, 0, 1, 1],
+                    'left': [0, 0, 0.5, 1],
+                    'right': [0.5, 0, 0.5, 1],
+                    # 2 x 2: strings
+                    'topleft': [0, 0, 0.5, 0.5],
+                    'topright': [0.5, 0, 0.5, 0.5],
+                    'bottomleft': [0, 0.5, 0.5, 0.5],
+                    'bottomright': [0.5, 0.5, 0.5, 0.5],
+                    # 2 x 2: codes
+                    '221': [0, 0, 0.5, 0.5],
+                    '222': [0.5, 0, 0.5, 0.5],
+                    '223': [0, 0.5, 0.5, 0.5],
+                    '224': [0.5, 0.5, 0.5, 0.5],
+                    # 2 x 3: codes
+                    '231': [0, 0, 1./3., 0.5],
+                    '232': [1./3., 0, 1./3., 0.5],
+                    '233': [2./3., 0, 1./3., 0.5],
+                    '234': [0, 0.5, 1./3., 0.5],
+                    '235': [1./3., 0.5, 1./3., 0.5],
+                    '236': [2./3., 0.5, 1./3., 0.5]}
 
 
 ###############################################################################
@@ -197,7 +221,12 @@ def _fill_empty_placeholders(Slide):
     """ Dirty hack: fill all empty placeholders with some text.
         Returns a list of objects that were filled, so then the text could be
         cleared from them (see empty_placeholders()).
-        If we don't do this - when we insert a figure, placeholder will disappear.
+
+        If we don't do this - when we insert a figure, it will be added to a
+        proper location, but internally it will be contained in the first empty
+        placeholder. I.e. it will disappear and could not be used for something
+        else anymore (however when the figure will be deleted from the slide,
+        it will appear again).
     """
     filled = []
     for p in _empty_placeholders(Slide):
@@ -325,26 +354,48 @@ def get_notes(Presentation=None):
 ###############################################################################
 # Core functionality
 ###############################################################################
-def _parse_bbox(bbox, keep_aspect=True):
-    """ Human-readable bbox-dimensions."""
-    if isinstance(bbox, str):  # Use preset
-        bbox = presets[bbox]
-        if all([0 <= _ <= 1 for _ in bbox]):
-            W, H = get_slide_dimensions()
-            bbox = [bbox[0] * W, bbox[1] * H, bbox[2] * W, bbox[3] * H]
+def _is_valid_preset_name(name):
+    if name.lower() in presets:
+        return True
+    names = [(m+s).lower() for s in preset_sizes.keys()
+             for m in preset_modifiers.keys()]
+    return name.lower() in names
 
-    # If keep_aspect:
-    if keep_aspect:
-        w, h = np.asfarray(plt.gcf().get_size_inches())
-        bx, by, bw, bh = np.asfarray(bbox)
-        aspect_fig = w / h
-        aspect_bbox = bw / bh
-        if aspect_fig > aspect_bbox:  # Figure is wider than bbox
-            newh = bw / aspect_fig
-            bbox = [bx, by + bh/2. - newh/2., bw, newh]
-        else:
-            neww = bh * aspect_fig
-            bbox = [bx + bw/2. - neww/2., by, neww, bh]
+
+def _parse_preset(name):
+    """ Set bbox coordinates based on the preset name """
+    try:
+        # If the name identifies a preset
+        bbox = presets[name.lower()]
+    except KeyError:
+        for k in ['XXL', 'XL', 'L', '']:
+            if name.upper().endswith(k):
+                boundary = preset_sizes[k]
+                name = name[:len(name)-len(k)]
+                break
+        bbox = preset_modifiers[name.lower()]
+        bbox = [boundary[0] + bbox[0] * boundary[2],
+                boundary[1] + bbox[1] * boundary[3],
+                boundary[2] * bbox[2], boundary[3] * bbox[3]]
+
+    # Scale to the slide dimensions if necessary
+    if all([0 <= _ <= 1 for _ in bbox]):
+        W, H = get_slide_dimensions()
+        bbox = [bbox[0] * W, bbox[1] * H, bbox[2] * W, bbox[3] * H]
+    return bbox
+
+
+def _keep_aspect(bbox):
+    w, h = np.asfarray(plt.gcf().get_size_inches())
+    bx, by, bw, bh = np.asfarray(bbox)
+    aspect_fig = w / h
+    aspect_bbox = bw / bh
+    if aspect_fig > aspect_bbox:  # Figure is wider than bbox
+        newh = bw / aspect_fig
+        bbox = [bx, by + bh/2. - newh/2., bw, newh]
+    else:
+        neww = bh * aspect_fig
+        bbox = [bx + bw/2. - neww/2., by, neww, bh]
     return bbox
 
 
@@ -361,14 +412,29 @@ def add_figure(bbox=None, slide_no=None, keep_aspect=True, tight=True,
                     - list of coordinates [x, y, width, height]
                     - string: 'Center', 'Left', 'Right', 'TopLeft', 'TopRight',
                       'BottomLeft', 'BottomRight', 'CenterL', 'CenterXL', 'Full'
-                      based on the presets, that could be modified
+                      based on the presets, that could be modified.
+                      Preset name is case-insensitive.
             slide_no - number of the slide (stating from 1), where to add image.
                        if not specified (None), active slide will be used.
             keep_aspect - if True, then the aspect ratio of the image will be
                           preserved, otherwise the image will shrink to fit bbox.
             tight - if True, then tight_layout() will be used
-            delete_placeholders - if True, then all placeholders will be deleted
+            delete_placeholders - if True, then all placeholders will be deleted.
+                                  Else: all empty placeholders will be preserved.
+                                  Default: delete_placeholders=True
             **kwargs - to be passed to plt.savefig()
+
+        There're two options of how to treat empty placeholders:
+         - delete them all (delete_placeholders=True). In this case everything,
+           which does not have text or figures will be deleted. So if you want
+           to keep them - you should add some text there before add_figure()
+         - keep the all (delete_placeholders=False). In this case, all of them
+           will be preserved even if they are completely hidden by the added
+           figure.
+        The only exception is when bbox is not provided (bbox=None). In this
+        case the figure will be added to the first available empty placeholder
+        (if found) and keep all other placeholders in place even if
+        delete_placeholders is set to True.
     """
     # Save the figure to png in temporary directory
     fname = _temp_fname()
@@ -393,7 +459,12 @@ def add_figure(bbox=None, slide_no=None, keep_aspect=True, tight=True,
         except IndexError:
             # If no placholders: use 'Center'
             bbox = 'Center'
-    bbox = _parse_bbox(bbox, keep_aspect=keep_aspect)
+    if isinstance(bbox, str):
+        if not _is_valid_preset_name(bbox):
+            raise ValueError('Unknown preset')
+        bbox = _parse_preset(bbox)
+    if keep_aspect:
+        bbox = _keep_aspect(bbox)
 
     # Now insert to PowerPoint
     if not use_placeholder:
