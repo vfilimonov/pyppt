@@ -192,6 +192,19 @@ def _placeholders_pictures(Slide, empty=False):
     return pics
 
 
+def _pictures(Slide):
+    """ Return list of all pictures: within placeholders and not """
+    pics = []
+    for s in _shapes(Slide):
+        if s.Type == msoShapeType['msoPicture']:
+            pics.append(s)
+        elif s.Type == msoShapeType['msoPlaceholder']:
+            if s.PlaceholderFormat.type in pp_pictures:
+                if not _is_placeholder_empty(s):
+                    pics.append(s)
+    return pics
+
+
 def _has_textframe(obj):
     """ Check if placeholder has TextFrame """
     return hasattr(obj, 'TextFrame') and hasattr(obj.TextFrame, 'TextRange')
@@ -415,7 +428,7 @@ def add_figure(bbox=None, slide_no=None, keep_aspect=True, tight=True,
                       based on the presets, that could be modified.
                       Preset name is case-insensitive.
             slide_no - number of the slide (stating from 1), where to add image.
-                       if not specified (None), active slide will be used.
+                       If not specified (None), active slide will be used.
             keep_aspect - if True, then the aspect ratio of the image will be
                           preserved, otherwise the image will shrink to fit bbox.
             tight - if True, then tight_layout() will be used
@@ -492,23 +505,58 @@ def add_figure(bbox=None, slide_no=None, keep_aspect=True, tight=True,
 
 
 ###############################################################################
-def replace_figure(pic_no=-1, slide_no=None, keep_aspect=True, **kwargs):
-    """ Delete an image from the slide and add a new one on the same place """
-    Slide = _get_slide(slide_no)
+def replace_figure(pic_no=None, left_no=None, top_no=None, zorder_no=None,
+                   slide_no=None, **kwargs):
+    """ Delete an image from the slide and add a new one on the same place
+
+        Parameters:
+            pic_no - If set, select picture by position in the list of objects
+            left_no - If set, select picture by position from the left
+            top_no - If set, select picture by position from the top
+            zorder_no - If set, select picture by z-order (from the front)
+                     (note only one among pic_no, left_no, top_no, z_order_no
+                      could be set at the same time, if all of them are None,
+                      then default of pic_no=0 will be used)
+            slide_no - number of the slide (stating from 1), where to add image.
+                       If not specified (None), active slide will be used.
+            **kwargs - to be passed to add_figure()
+    """
     # Get all images
-    shapes = []
-    for ii in range(Slide.Shapes.Count):
-        item = Slide.Shapes.Item(1+ii)
-        if item.Type == msoShapeType['msoPicture']:
-            shapes.append(shape)
-    # Select required shape
-    if len(shapes) < pic_no:
+    pics = _pictures(_get_slide(slide_no))
+
+    # Check arguments
+    if sum([pic_no is not None, left_no is not None, top_no is not None,
+            zorder_no is not None]) > 1:
+        raise ValueError('Only one among pic_no, left_no, top_no could be used')
+    if left_no is None and pic_no is None and top_no is None and zorder_no is None:
+        pic_no = 0
+    if ((pic_no is not None and len(pics) < pic_no) or
+        (left_no is not None and len(pics) < left_no) or
+        (top_no is not None and len(pics) < top_no) or
+        (zorder_no is not None and len(pics) < zorder_no)):
         raise ValueError('Picture index is out of range')
-    else:
-        shape = shapes[pic_no]
+
+    # Choose one
+    if pic_no is not None:
+        pos = range(len(pics))
+        no = pic_no
+    elif left_no is not None:
+        pos = [s.Left for s in pics]
+        no = left_no
+    elif top_no is not None:
+        pos = [s.Top for s in pics]
+        no = top_no
+    elif zorder_no is not None:
+        pos = [s.ZOrderPosition for s in pics][::-1]
+        no = zorder_no
+
+    # Sort based on the position and select
+    pos_pic = sorted([(x, y) for x, y in zip(pos, pics)], key=lambda _: _[0])
+    pic = pos_pic[no][1]
+
     # Save position
-    pos = [shape.Left, shape.Top, shape.Width, shape.Height]
+    pos = [pic.Left, pic.Top, pic.Width, pic.Height]
     # Delete
-    shape.Delete()
+    pic.Delete()
     # And add a new one
-    add_figure(bbox=pos, keep_aspect=keep_aspect, **kwargs)
+    add_figure(bbox=pos, **kwargs)
