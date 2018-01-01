@@ -1,24 +1,25 @@
 from distutils.core import setup
 
+import sys
+sys.path.insert(0, './pyppt')
+from _ver_ import __version__, __author__, __email__, __url__
+
 # Long description to be published in PyPi
 LONG_DESCRIPTION = """
 **pyppt**: Python interface for adding figures to Microsoft PowerPoint presentations on-the-fly.
 
 For the documentation please refer to README.md inside the package or on the
-GitHub (https://github.com/vfilimonov/pyppt/blob/master/README.md).
-"""
-
-_URL = 'http://github.com/vfilimonov/pyppt'
-_VERSION = '0.1'
+GitHub (%s/blob/master/README.md).
+""" % (__url__)
 
 setup(name='pyppt',
-      version=_VERSION,
+      version=__version__,
       description='Python interface for adding figures to Microsoft PowerPoint presentations on-the-fly.',
       long_description=LONG_DESCRIPTION,
-      url=_URL,
-      download_url=_URL + '/archive/v' + _VERSION + '.zip',
-      author='Vladimir Filimonov',
-      author_email='vladimir.a.filimonov@gmail.com',
+      url=__url__,
+      download_url=__url__ + '/archive/v' + __version__ + '.zip',
+      author=__author__,
+      author_email=__email__,
       license='MIT License',
       packages=['pyppt'],
       install_requires=[],

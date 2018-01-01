@@ -1,5 +1,7 @@
-# Dummy __init__ file
+# Import library contents
 from .pyppt import *
+# Metadata to be shared between module and setup.py
+from _ver_ import __version__, __author__, __email__, __url__
 
 # Hijack matplotlib
 import matplotlib.pyplot as _plt
