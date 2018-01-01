@@ -328,9 +328,8 @@ def get_image_positions(slide_no=None, asarray=True, decimals=1):
         coordinates to a given decimals (if "decimals" is not None)
         Return list of lists of the format [x, y, w, h].
     """
-    positions = get_shape_positions(slide_no)
-    # Keep only images
-    positions = [p[:-1] for p in positions if p[-1] == msoShapeType['msoPicture']]
+    positions = [[item.Left, item.Top, item.Width, item.Height]
+                 for item in _pictures(_get_slide(slide_no))]
     if asarray:
         if decimals is not None:
             return np.round(np.array(positions), decimals=decimals)
@@ -364,7 +363,7 @@ def get_notes(Presentation=None):
 # Core functionality
 ###############################################################################
 def _is_valid_preset_name(name):
-    if name.lower() in presets:
+    if name.lower() in [k.lower() for k in presets.keys()]:
         return True
     names = [(m+s).lower() for s in preset_sizes.keys()
              for m in preset_modifiers.keys()]
@@ -375,19 +374,29 @@ def _parse_preset(name):
     """ Set bbox coordinates based on the preset name """
     try:
         # If the name identifies a preset
-        bbox = presets[name.lower()]
+        _presets = {k.lower(): v for k, v in presets.items()}
+        bbox = _presets[name.lower()]
     except KeyError:
-        for k in ['XXL', 'XL', 'L', '']:
-            if name.upper().endswith(k):
-                boundary = preset_sizes[k]
-                name = name[:len(name)-len(k)]
-                break
-        bbox = preset_modifiers[name.lower()]
+        _preset_sizes = {k.upper(): v for k, v in preset_sizes.items()}
+        _preset_modifiers = {k.lower(): v for k, v in preset_modifiers.items()}
+        name = name.upper()
+
+        # Take the longest suffix that matches the name
+        size = [_ for _ in _preset_sizes if name.endswith(_)]
+        lens = [len(_) for _ in size]
+        size = [v for k, v in zip(lens, size) if k == max(lens)][0]
+
+        boundary = _preset_sizes[size]
+        name = name[:len(name)-len(size)]
+        bbox = _preset_modifiers[name.lower()]
         bbox = [boundary[0] + bbox[0] * boundary[2],
                 boundary[1] + bbox[1] * boundary[3],
                 boundary[2] * bbox[2], boundary[3] * bbox[3]]
+    return bbox
 
-    # Scale to the slide dimensions if necessary
+
+def _scale_bbox(bbox):
+    """ Scale to the slide dimensions if necessary."""
     if all([0 <= _ <= 1 for _ in bbox]):
         W, H = get_slide_dimensions()
         bbox = [bbox[0] * W, bbox[1] * H, bbox[2] * W, bbox[3] * H]
@@ -472,6 +481,7 @@ def add_figure(bbox=None, slide_no=None, keep_aspect=True, tight=True,
         if not _is_valid_preset_name(bbox):
             raise ValueError('Unknown preset')
         bbox = _parse_preset(bbox)
+    bbox = _scale_bbox(bbox)
     if keep_aspect:
         bbox = _keep_aspect(bbox)
 
@@ -541,16 +551,19 @@ def replace_figure(pic_no=None, left_no=None, top_no=None, zorder_no=None,
     elif zorder_no is not None:
         pos = [s.ZOrderPosition for s in pics][::-1]
         no = zorder_no
-    if len(pics) < no or no < 1:
+    if len(pics) < no or no == 0:
         raise ValueError('Picture index is out of range')
 
     # Sort based on the position and select
     pos_pic = sorted([(x, y) for x, y in zip(pos, pics)], key=lambda _: _[0])
-    pic = pos_pic[no-1][1]
+    if no < 0:
+        pic = pos_pic[no][1]
+    else:
+        pic = pos_pic[no-1][1]
 
     # Save position
     pos = [pic.Left, pic.Top, pic.Width, pic.Height]
     # Delete
     pic.Delete()
     # And add a new one
-    add_figure(bbox=pos, **kwargs)
+    add_figure(bbox=pos, slide_no=slide_no, **kwargs)
