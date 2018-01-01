@@ -514,9 +514,10 @@ def replace_figure(pic_no=None, left_no=None, top_no=None, zorder_no=None,
             left_no - If set, select picture by position from the left
             top_no - If set, select picture by position from the top
             zorder_no - If set, select picture by z-order (from the front)
-                     (note only one among pic_no, left_no, top_no, z_order_no
-                      could be set at the same time, if all of them are None,
-                      then default of pic_no=0 will be used)
+                        Note: indexing starts at 1.
+                        Note: only one of pic_no, left_no, top_no, z_order_no
+                        could be set at the same time. If all of them are None,
+                        then default of pic_no=1 will be used.
             slide_no - number of the slide (stating from 1), where to add image.
                        If not specified (None), active slide will be used.
             **kwargs - to be passed to add_figure()
@@ -529,12 +530,7 @@ def replace_figure(pic_no=None, left_no=None, top_no=None, zorder_no=None,
             zorder_no is not None]) > 1:
         raise ValueError('Only one among pic_no, left_no, top_no could be used')
     if left_no is None and pic_no is None and top_no is None and zorder_no is None:
-        pic_no = 0
-    if ((pic_no is not None and len(pics) < pic_no) or
-        (left_no is not None and len(pics) < left_no) or
-        (top_no is not None and len(pics) < top_no) or
-        (zorder_no is not None and len(pics) < zorder_no)):
-        raise ValueError('Picture index is out of range')
+        pic_no = 1
 
     # Choose one
     if pic_no is not None:
@@ -549,10 +545,12 @@ def replace_figure(pic_no=None, left_no=None, top_no=None, zorder_no=None,
     elif zorder_no is not None:
         pos = [s.ZOrderPosition for s in pics][::-1]
         no = zorder_no
+    if len(pics) < no or no < 1:
+        raise ValueError('Picture index is out of range')
 
     # Sort based on the position and select
     pos_pic = sorted([(x, y) for x, y in zip(pos, pics)], key=lambda _: _[0])
-    pic = pos_pic[no][1]
+    pic = pos_pic[no-1][1]
 
     # Save position
     pos = [pic.Left, pic.Top, pic.Width, pic.Height]
