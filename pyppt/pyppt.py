@@ -10,10 +10,6 @@ import warnings
 import tempfile
 import os
 
-__version__ = '0.1'
-__author__ = 'Vladimir Filimonov'
-__email__ = 'vladimir.a.filimonov@gmail.com'
-
 ###############################################################################
 # Some constants from MSDN MS Office reference
 # See also VBA reference: https://github.com/OfficeDev/VBA-content
