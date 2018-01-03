@@ -1,19 +1,8 @@
 # pyppt: adding figures to Microsoft PowerPoint on-the-fly
 
-## Why pyppt?..
+pyppt is a python interface to add figures straight from matplotlib to the active slide in Microsoft PowerPoint on-the-fly: without need to save the figure first and without modification of the pptx file on the disk:
 
-...especially since there already exists [python-pptx](https://python-pptx.readthedocs.io/en/latest/) - a great tool for automation of the slide generation. Monthly performance reports with fifteen tables and forty figures? Easy! Just make a template once and run a script every month to fill it with up-to-date information.
-
-But my needs are slightly different. Usually there’s no "template" in research presentations and each one is unique - with its own story, structure, sections, layouts and annotations. My usual workflow is all around Jupyter notebooks and analysis therein; and at the same time I have PowerPoint open, where the story and details are being drafted: slides being reshuffled between sections and appendix, and charts being changed many times before the final version. Two things that I do most often: (i) take the plot from the notebook and paste it into the slide or (ii) replace the plot on the slide with another one. Both take quite some annoying micro-actions: save to file, open folder, drop the image and perhaps resize or right-click, "Change picture...", select a new one...
-
-So all what I actually need is to have something like `plt.savefig(fname)`:
-```python
-plt.add_figure()
-```
-that would do the trick and take the active plot and stick it to the active slide; and similar tool for replacing the figure.
-
-That’s it: pyppt is all about using python together with the WYSWYG-editing PowerPoint presentation - about `plt.add_figure()` and `plt.replace_figure()`.
-
+![pyppt use-case](screencast.gif)
 
 ## Installation
 
@@ -163,13 +152,24 @@ In this case output will have format of `[[x, y, width, height, type], ...]`. He
 ppt.msoShapeTypeInt[14]
 ```
 
+## Why pyppt?..
+
+...especially since there already exists [python-pptx](https://python-pptx.readthedocs.io/en/latest/) - a great tool for automation of the slide generation. Monthly performance reports with fifteen tables and forty figures? Easy! Just make a template once and run a script every month to fill it with up-to-date information.
+
+But my needs are slightly different. Usually there’s no "template" in research presentations and each one is unique - with its own story, structure, sections, layouts and annotations. My usual workflow is all around Jupyter notebooks and analysis therein; and at the same time I have PowerPoint open, where the story and details are being drafted: slides being reshuffled between sections and appendix, and charts being changed many times before the final version. Two things that I do most often: (i) take the plot from the notebook and paste it into the slide or (ii) replace the plot on the slide with another one. Both take quite some annoying micro-actions: save to file, open folder, drop the image and perhaps resize or right-click, "Change picture...", select a new one...
+
+So all what I actually need is to take the active plot and stick it to the active slide; and similar tool for replacing the figure.
+
+That’s it. pyppt is not a Swiss-army-knife, it is all about using python together with the WYSWYG-editing PowerPoint presentation - about `plt.add_figure()` and `plt.replace_figure()`.
+
+
 ## What about...
 
-* **...PowerPoint for OSX**? Well... (Un?)fortunately OSX does not really use COM. Much of communications with the running apps could be done using the native AppleScript, but at the moment I'm not up to figuring out how to port the code to use these interfaces. Furthermore, I have a slight hope that under OSX you have better things to do, rather than messing with the PowerPoint. At least it was the case for me.
-* **...OpenOffice**? There exist [python-uno bridge](https://wiki.openoffice.org/wiki/Python) to work with the UNO (OO's component model). So it should be possible to modify the code of pyppt to make it work with OpenOffice via UNO. But I've never used OO, neither do I have time and interest for porting the code.
-* **...changing the properties, adding shapes, animations, etc.**? Right, that would be great to have! If I find that my personal use-cases worth extending pyppt, I would certainly add functionality.
-* **..some references for the PowerPoint objects**? Sure! Most of information could be found at [MSDN](https://msdn.microsoft.com/en-us/vba/vba-powerpoint) or similar VBA reference [on github](https://github.com/OfficeDev/VBA-content). Python module `win32com` makes it pretty trivial to reuse VBA code from these docs.
-* **...PR's, suggestions and bug reports**? Always welcome!
+* **...PowerPoint for OSX?** Well... (Un?)fortunately OSX does not really use COM. Much of communications with the running apps could be done using the native AppleScript, but at the moment I'm not up to figuring out how to port the code to use these interfaces. Furthermore, I have a slight hope that under OSX you have better things to do, rather than messing with the PowerPoint. At least it was the case for me.
+* **...OpenOffice?** There exist [python-uno bridge](https://wiki.openoffice.org/wiki/Python) to work with the UNO (OO's component model). So it should be possible to modify the code of pyppt to make it work with OpenOffice via UNO. But I've never used OO, neither do I have time and interest for porting the code.
+* **...changing the properties, adding shapes, animations, etc.?** Right, that would be great to have! If I find that my personal use-cases worth extending pyppt, I would certainly add functionality.
+* **..some references for the PowerPoint objects?** Sure! Most of information could be found at [MSDN](https://msdn.microsoft.com/en-us/vba/vba-powerpoint) or similar VBA reference [on github](https://github.com/OfficeDev/VBA-content). Python module `win32com` makes it pretty trivial to reuse VBA code from these docs.
+* **...PR's, suggestions and bug reports?** Always welcome!
 
 ## License
 
