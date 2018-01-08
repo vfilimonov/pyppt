@@ -2,7 +2,7 @@
 
 pyppt is a python interface to add figures straight from matplotlib to the active slide in Microsoft PowerPoint on-the-fly: without need to save the figure first and without modification of the pptx file on the disk:
 
-![pyppt use-case](screencast.gif)
+![screencast](https://user-images.githubusercontent.com/1324881/34690272-c227b100-f4b8-11e7-8581-c158aed84b9a.gif)
 
 ## Installation
 
@@ -14,6 +14,7 @@ pip install pyppt
 
 The latest version of pyppt is always available at [GitHub](https://github.com/vfilimonov/pyppt) at the `master` branch.
 
+**Note**, that both python (or IPython notebook) and PowerPoint should be running on the same Windows machine, i.e. it won't work if the notebook is hosted on a remote server or a cloud.
 
 ## Basic use
 
