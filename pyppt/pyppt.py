@@ -417,9 +417,22 @@ def _keep_aspect(bbox):
     return bbox
 
 
+def _intersection_area(a, b):
+    """ a, b - rectangles [x, y, w, h] """
+    x = max(a[0], b[0])
+    y = max(a[1], b[1])
+    w = min(a[0]+a[2], b[0]+b[2]) - x
+    h = min(a[1]+a[3], b[1]+b[3]) - y
+    if w < 0 or h < 0:
+        w = h = 0
+    # TODO: shall we use relative or absolute area?
+    return w * h / float(b[2]) / float(b[3])
+    # return w * h
+
+
 ###############################################################################
 def add_figure(bbox=None, slide_no=None, keep_aspect=True, tight=True,
-               delete_placeholders=True, **kwargs):
+               delete_placeholders=True, replace=False, **kwargs):
     """ Add current figure to the active slide (or a slide with a given number).
 
         Parameters:
@@ -440,6 +453,13 @@ def add_figure(bbox=None, slide_no=None, keep_aspect=True, tight=True,
             delete_placeholders - if True, then all placeholders will be deleted.
                                   Else: all empty placeholders will be preserved.
                                   Default: delete_placeholders=True
+            replace - if True, before adding picture it will first check if
+                      there're any other pictures on the slide that overlap with
+                      the target bbox. Then the picture, that overlap the most
+                      will be replaced by the new one, keeping its position (i.e.
+                      method will act like replace_figure() and target bbox will
+                      be ignored). If no such pictures found - method will add
+                      figure as usual.
             **kwargs - to be passed to plt.savefig()
 
         There're two options of how to treat empty placeholders:
@@ -484,11 +504,31 @@ def add_figure(bbox=None, slide_no=None, keep_aspect=True, tight=True,
             raise ValueError('Unknown preset')
         bbox = _parse_preset(bbox)
     bbox = _scale_bbox(bbox)
+
+    if replace:
+        # Check if there's any figure that overlap with bbox
+        pics = _pictures(_get_slide(slide_no))
+        areas = [_intersection_area(bbox, [p.Left, p.Top, p.Width, p.Height])
+                 for p in pics]
+        pics = sorted([(x, y) for x, y in zip(areas, pics)], key=lambda _: _[0])
+        try:
+            area, pic = pics[-1]
+        except IndexError:
+            area = 0
+        if area > 0.1:  # Arbitrary - 10% of overlapping area is minimum
+            # There's overlapping picture - replace
+            target_z_order = pic.ZOrderPosition
+            bbox = [pic.Left, pic.Top, pic.Width, pic.Height]
+            pic.Delete()
+        else:
+            # Else - simply add a new one
+            replace = False
+
     if keep_aspect:
         bbox = _keep_aspect(bbox)
 
     # Now insert to PowerPoint
-    if not use_placeholder:
+    if not use_placeholder and not replace:
         if delete_placeholders:
             _delete_empty_placeholders(Slide)
         else:
@@ -511,7 +551,7 @@ def add_figure(bbox=None, slide_no=None, keep_aspect=True, tight=True,
                          bbox[0], bbox[1], bbox[2], bbox[3]))
 
     # Clean-up
-    if not use_placeholder and not delete_placeholders:
+    if not use_placeholder and not delete_placeholders and not replace:
         _revert_filled_placeholders(items)
     os.remove(fname)
 
@@ -576,4 +616,5 @@ def replace_figure(pic_no=None, left_no=None, top_no=None, zorder_no=None,
     pic.Delete()
     # And add a new one
     target_z_order = zorder if keep_zorder else None
-    add_figure(bbox=pos, slide_no=slide_no, target_z_order=target_z_order, **kwargs)
+    add_figure(bbox=pos, slide_no=slide_no, target_z_order=target_z_order,
+               replace=False, **kwargs)

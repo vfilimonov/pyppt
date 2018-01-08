@@ -32,7 +32,7 @@ this will make the histogram, save it to the temporary directory, add it to the 
 
 Full definition has the following arguments:
 ```python
-add_figure(bbox=None, slide_no=None, keep_aspect=True, tight=True, delete_placeholders=True, **kwargs)
+add_figure(bbox=None, slide_no=None, keep_aspect=True, tight=True, delete_placeholders=True, replace=False, **kwargs)
 ```
 `bbox` defines the boundary box for the figure. It could be specified in a number of ways: e.g. via coordinates (`[x, y, width, height]`) of the figure in pixels:
 ```python
@@ -63,9 +63,13 @@ By default figure is added to the current slide unless the slide number is speci
 Argument `delete_placeholders` which is set to `True` by default, defines whether empty placeholders will be kept or not. There're three ways of how to deal with them:
 * delete them all (`delete_placeholders=True`). In this case everything, which does not have text or figures will be deleted. So if you want to keep some of them - you should add some text there before calling `add_figure()`.
 * keep the all (`delete_placeholders=False`). In this case, all of empty placeholders will be preserved even if they are completely hidden by the added figure.
-* The only exception is when `bbox` is not provided (`bbox=None`). In this case the figure will be added to the first available empty placeholder (if found) and keep all other placeholders in place even if `delete_placeholders` is set to `True`. (Note, that in this case, bbox could be not respected)
+* The only exception is when `bbox` is not provided (`bbox=None`). In this case the figure will be added to the first available empty placeholder (if found) and keep all other placeholders in place even if `delete_placeholders` is set to `True` (note, that in this case, bbox could be not respected).
 
 Such convention is a workaround of the way how Microsoft PowerPoint treat placeholders. When the picture is added to the slide (even using COM methods), if there're empty placeholders, it will be assigned to the first one available. I.e. it will be placed correctly (`bbox` will be respected), but "internally" it will be contained in the placeholder. I.e. the placeholder will disappear and could not be used for something else anymore (however when the figure will be deleted from the slide, it will appear again).
+
+Last argument `replace` extends functionality `add_figure()` to both adding and replacing figures with the same interface. If it is set  to `True`, then before adding picture it will first check if there're any other pictures on the slide that overlap with the target `bbox` (defined either with coordinates or string). If such pictures are found, then the picture on the slide, that overlap the most, will be replaced by the adding picture, taking its position (i.e. method will act like `replace_figure()` and target `bbox` will be ignored). If no such pictures found - method will add figure in the usual way.
+
+This does not substitute `replace_figure()` and is not very versatile in choosing the picture to replace, but it is mostly convenient when one wants to edit figure on the slide with multiple iterations: first adding draft and then working out the style by simple re-evaluation of the cell in IPython notebook, without need to comment `add_figure()` and add `replace_figure()`.
 
 Finally, `**kwargs` are passed to `plt.savefig()`, so the change of dpi could be done via:
 ```python
@@ -177,6 +181,7 @@ That’s it. pyppt is not a Swiss-army-knife, it is all about using python toget
 ### [v0.1.1] - 2018-01-xx
 
 * `replace_figure()` now preserves z-order of the picture.
+* `add_figure()` now has argument `replace` that allows adding figure on the first call and then replacing it on all further calls.
 
 
 ## License
