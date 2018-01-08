@@ -2,7 +2,8 @@
 
 pyppt is a python interface to add figures straight from matplotlib to the active slide in Microsoft PowerPoint on-the-fly: without need to save the figure first and without modification of the pptx file on the disk:
 
-![screencast](https://user-images.githubusercontent.com/1324881/34690272-c227b100-f4b8-11e7-8581-c158aed84b9a.gif)
+![screencast2](https://user-images.githubusercontent.com/1324881/34696423-100b68e2-f4cf-11e7-926a-48d62e970cc1.gif)
+
 
 ## Installation
 
@@ -178,7 +179,7 @@ That’s it. pyppt is not a Swiss-army-knife, it is all about using python toget
 
 ## Changelog
 
-### [v0.1.1] - 2018-01-xx
+### [v0.1.1] - 2018-01-08
 
 * `replace_figure()` now preserves z-order of the picture.
 * `add_figure()` now has argument `replace` that allows adding figure on the first call and then replacing it on all further calls.
