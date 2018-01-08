@@ -77,9 +77,9 @@ ppt.add_figure('Center', dpi=300)
 
 Function `replace_figure()` does the trick:
 ```python
-replace_figure(pic_no=None, left_no=None, top_no=None, zorder_no=None, slide_no=None, **kwargs)
+replace_figure(pic_no=None, left_no=None, top_no=None, zorder_no=None, slide_no=None, keep_zorder=True, **kwargs)
 ```
-What it does: it tries to identify the figure which should be deleted using arguments `pic_no, left_no, top_no` or `zorder_no`, saves its position, deletes it from the slide and then calls `add_figure(..., **kwargs)`.
+What it does: it tries to identify the figure which should be deleted using arguments `pic_no, left_no, top_no` or `zorder_no`, saves its position, deletes it from the slide and then calls `add_figure(..., **kwargs)`. By default (unless `keep_zorder` is set to `False`), it preserves z-order position of the picture.
 
 The main inconvenience here is how to choose the figure which is to be replaced. There're no smooth and perfect way for doing this without pointing and clicking on the picture. The best case if there's only one picture on the slide, then
 ```python
@@ -171,6 +171,13 @@ That’s it. pyppt is not a Swiss-army-knife, it is all about using python toget
 * **...changing the properties, adding shapes, animations, etc.?** Right, that would be great to have! If I find that my personal use-cases worth extending pyppt, I would certainly add functionality.
 * **..some references for the PowerPoint objects?** Sure! Most of information could be found at [MSDN](https://msdn.microsoft.com/en-us/vba/vba-powerpoint) or similar VBA reference [on github](https://github.com/OfficeDev/VBA-content). Python module `win32com` makes it pretty trivial to reuse VBA code from these docs.
 * **...PR's, suggestions and bug reports?** Always welcome!
+
+## Changelog
+
+### [v0.1.1] - 2018-01-xx
+
+* `replace_figure()` now preserves z-order of the picture.
+
 
 ## License
 

@@ -454,6 +454,8 @@ def add_figure(bbox=None, slide_no=None, keep_aspect=True, tight=True,
         (if found) and keep all other placeholders in place even if
         delete_placeholders is set to True.
     """
+    # Small hack
+    target_z_order = kwargs.pop('target_z_order', None)
     # Save the figure to png in temporary directory
     fname = _temp_fname()
     if tight:
@@ -494,6 +496,10 @@ def add_figure(bbox=None, slide_no=None, keep_aspect=True, tight=True,
     shape = Slide.Shapes.AddPicture(FileName=fname, LinkToFile=False,
                                     SaveWithDocument=True, Left=bbox[0],
                                     Top=bbox[1], Width=bbox[2], Height=bbox[3])
+    # Adjust z-order if necessary
+    if target_z_order is not None and target_z_order > 0:
+        while shape.ZOrderPosition > target_z_order:
+            shape.ZOrder(msoZOrderCmd['msoSendBackward'])
     filled_bbox = [shape.Left, shape.Top, shape.Width, shape.Height]
 
     # Check if the bbox is correctly filled.
@@ -512,7 +518,7 @@ def add_figure(bbox=None, slide_no=None, keep_aspect=True, tight=True,
 
 ###############################################################################
 def replace_figure(pic_no=None, left_no=None, top_no=None, zorder_no=None,
-                   slide_no=None, **kwargs):
+                   slide_no=None, keep_zorder=True, **kwargs):
     """ Delete an image from the slide and add a new one on the same place
 
         Parameters:
@@ -526,6 +532,8 @@ def replace_figure(pic_no=None, left_no=None, top_no=None, zorder_no=None,
                         then default of pic_no=1 will be used.
             slide_no - number of the slide (stating from 1), where to add image.
                        If not specified (None), active slide will be used.
+            keep_zorder - If True, then the new figure will be moved to the
+                          z-order, as the original one.
             **kwargs - to be passed to add_figure()
     """
     # Get all images
@@ -563,7 +571,9 @@ def replace_figure(pic_no=None, left_no=None, top_no=None, zorder_no=None,
 
     # Save position
     pos = [pic.Left, pic.Top, pic.Width, pic.Height]
+    zorder = pic.ZOrderPosition
     # Delete
     pic.Delete()
     # And add a new one
-    add_figure(bbox=pos, slide_no=slide_no, **kwargs)
+    target_z_order = zorder if keep_zorder else None
+    add_figure(bbox=pos, slide_no=slide_no, target_z_order=target_z_order, **kwargs)

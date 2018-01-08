@@ -14,7 +14,7 @@ GitHub (%s/blob/master/README.md).
 
 setup(name='pyppt',
       version=__version__,
-      description='Python interface for adding figures to Microsoft PowerPoint presentations on-the-fly.',
+      description='Python interface for adding figures to Microsoft PowerPoint presentations on-the-fly',
       long_description=LONG_DESCRIPTION,
       url=__url__,
       download_url=__url__ + '/archive/v' + __version__ + '.zip',
