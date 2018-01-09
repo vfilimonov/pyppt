@@ -3,12 +3,22 @@
 #
 # (c) Vladimir Filimonov, December 2017
 ###############################################################################
-from win32com import client
-import matplotlib.pyplot as plt
 import numpy as np
 import warnings
 import tempfile
 import os
+import sys
+
+try:
+    import win32com
+except ImportError:
+    # If not on Windows
+    win32com = None
+try:
+    import matplotlib.pyplot as plt
+except RuntimeError:
+    # If the backend is not set up (like on the server)
+    plt = None
 
 ###############################################################################
 # Some constants from MSDN MS Office reference
@@ -131,9 +141,19 @@ def _temp_fname():
     return name + '.png'
 
 
+def _check_win32com():
+    if win32com is None:
+        from _ver_ import __url__
+        raise Exception('win32com module is not found (current platform: %s). '
+                        'Most likely the code is running on the remote server. '
+                        'Check the documentation for the possible solution: %s.'
+                        % (sys.platform, __url__))
+
+
 def _get_application():
     """ Get reference to PowerPoint application """
-    Application = client.Dispatch('PowerPoint.Application')
+    _check_win32com()
+    Application = win32com.client.Dispatch('PowerPoint.Application')
     # Make it visible
     Application.Visible = True
     return Application
