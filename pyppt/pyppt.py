@@ -10,15 +10,20 @@ import os
 import sys
 
 try:
-    import win32com
+    from win32com import client as win32client
 except ImportError:
     # If not on Windows
-    win32com = None
+    win32client = None
 try:
     import matplotlib.pyplot as plt
 except RuntimeError:
     # If the backend is not set up (like on the server)
     plt = None
+try:
+    basestring = basestring
+except NameError:
+    unicode = str
+    basestring = (str, bytes)
 
 ###############################################################################
 # Some constants from MSDN MS Office reference
@@ -142,7 +147,7 @@ def _temp_fname():
 
 
 def _check_win32com():
-    if win32com is None:
+    if win32client is None:
         from _ver_ import __url__
         raise Exception('win32com module is not found (current platform: %s). '
                         'Most likely the code is running on the remote server. '
@@ -153,7 +158,7 @@ def _check_win32com():
 def _get_application():
     """ Get reference to PowerPoint application """
     _check_win32com()
-    Application = win32com.client.Dispatch('PowerPoint.Application')
+    Application = win32client.Dispatch('PowerPoint.Application')
     # Make it visible
     Application.Visible = True
     return Application
@@ -519,7 +524,7 @@ def add_figure(bbox=None, slide_no=None, keep_aspect=True, tight=True,
         except IndexError:
             # If no placholders: use 'Center'
             bbox = 'Center'
-    if isinstance(bbox, str):
+    if isinstance(bbox, basestring):
         if not _is_valid_preset_name(bbox):
             raise ValueError('Unknown preset')
         bbox = _parse_preset(bbox)

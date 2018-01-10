@@ -32,7 +32,7 @@ class ClientJavascript(object):
         raise NotImplementedError  # TODO
 
     def post_and_figure(self, method, filename, **kwargs):
-        """ Sends figure to server and then call POST """
+        """ Uploads figure to server and then call POST """
         raise NotImplementedError  # TODO
 
 
@@ -50,7 +50,7 @@ class ClientRequests(object):
         raise NotImplementedError  # TODO
 
     def post_and_figure(self, method, filename, **kwargs):
-        """ Sends figure to server and then call POST """
+        """ Uploads figure to server and then call POST """
         raise NotImplementedError  # TODO
 
 
@@ -139,47 +139,6 @@ def get_notes():
 ###############################################################################
 def add_figure(bbox=None, slide_no=None, keep_aspect=True, tight=True,
                delete_placeholders=True, replace=False, **kwargs):
-    """ Add current figure to the active slide (or a slide with a given number).
-
-        Parameters:
-            bbox - Bounding box for the image in the format:
-                    - None - the first empty image placeholder will be used, if
-                             no such placeholders are found, then the 'Center'
-                             value will be used.
-                    - list of coordinates [x, y, width, height]
-                    - string: 'Center', 'Left', 'Right', 'TopLeft', 'TopRight',
-                      'BottomLeft', 'BottomRight', 'CenterL', 'CenterXL', 'Full'
-                      based on the presets, that could be modified.
-                      Preset name is case-insensitive.
-            slide_no - number of the slide (stating from 1), where to add image.
-                       If not specified (None), active slide will be used.
-            keep_aspect - if True, then the aspect ratio of the image will be
-                          preserved, otherwise the image will shrink to fit bbox.
-            tight - if True, then tight_layout() will be used
-            delete_placeholders - if True, then all placeholders will be deleted.
-                                  Else: all empty placeholders will be preserved.
-                                  Default: delete_placeholders=True
-            replace - if True, before adding picture it will first check if
-                      there're any other pictures on the slide that overlap with
-                      the target bbox. Then the picture, that overlap the most
-                      will be replaced by the new one, keeping its position (i.e.
-                      method will act like replace_figure() and target bbox will
-                      be ignored). If no such pictures found - method will add
-                      figure as usual.
-            **kwargs - to be passed to plt.savefig()
-
-        There're two options of how to treat empty placeholders:
-         - delete them all (delete_placeholders=True). In this case everything,
-           which does not have text or figures will be deleted. So if you want
-           to keep them - you should add some text there before add_figure()
-         - keep the all (delete_placeholders=False). In this case, all of them
-           will be preserved even if they are completely hidden by the added
-           figure.
-        The only exception is when bbox is not provided (bbox=None). In this
-        case the figure will be added to the first available empty placeholder
-        (if found) and keep all other placeholders in place even if
-        delete_placeholders is set to True.
-    """
     # Save the figure to png in temporary directory
     fname = pyppt._temp_fname()
     if tight:
@@ -198,23 +157,6 @@ def add_figure(bbox=None, slide_no=None, keep_aspect=True, tight=True,
 ###############################################################################
 def replace_figure(pic_no=None, left_no=None, top_no=None, zorder_no=None,
                    slide_no=None, keep_zorder=True, **kwargs):
-    """ Delete an image from the slide and add a new one on the same place
-
-        Parameters:
-            pic_no - If set, select picture by position in the list of objects
-            left_no - If set, select picture by position from the left
-            top_no - If set, select picture by position from the top
-            zorder_no - If set, select picture by z-order (from the front)
-                        Note: indexing starts at 1.
-                        Note: only one of pic_no, left_no, top_no, z_order_no
-                        could be set at the same time. If all of them are None,
-                        then default of pic_no=1 will be used.
-            slide_no - number of the slide (stating from 1), where to add image.
-                       If not specified (None), active slide will be used.
-            keep_zorder - If True, then the new figure will be moved to the
-                          z-order, as the original one.
-            **kwargs - to be passed to add_figure()
-    """
     # Save the figure to png in temporary directory
     fname = pyppt._temp_fname()
     if tight:
@@ -228,3 +170,8 @@ def replace_figure(pic_no=None, left_no=None, top_no=None, zorder_no=None,
                                    left_no=left_no, top_no=top_no,
                                    zorder_no=zorder_no, slide_no=slide_no,
                                    keep_zorder=keep_zorder, **kwargs)
+
+
+###############################################################################
+add_figure.__doc__ = pyppt.add_figure.__doc__
+replace_figure.__doc__ = pyppt.replace_figure.__doc__
