@@ -12,7 +12,7 @@ try:
 except ImportError:
     from urllib.parse import urlencode  # Python 3
 
-import pyppt as pyppt
+import pyppt.pyppt as pyppt
 from ._ver_ import __version__, __author__, __email__, __url__
 
 
@@ -27,8 +27,9 @@ class ClientGeneric(object):
 
     def url(self, method, **kwargs):
         res = self._url + method
-        if kwargs is not None:
-            res = res + '?' + urlencode(kwargs)
+        args = {_: kwargs[_] for _ in kwargs if kwargs[_] is not None}
+        if len(args) > 0:
+            res = res + '?' + urlencode(args)
         self._last_url = res
         return res
 
@@ -61,15 +62,21 @@ class ClientRequests(ClientGeneric):
         self.requests = requests
 
     def get(self, method, **kwargs):
-        return self.requests.get(self.url(method, **kwargs)).text
+        r = self.requests.get(self.url(method, **kwargs))
+        self._last_request = r
+        return r.text
 
     def post(self, method, **kwargs):
-        return self.requests.post(self.url(method), json=kwargs).text
+        args = {_: kwargs[_] for _ in kwargs if kwargs[_] is not None}
+        r = self.requests.post(self.url(method), json=args)
+        self._last_request = r
+        return r.text
 
     def upload_picture(self, filename, delete=False):
         with open(filename, 'rb') as f:
             r = self.requests.post(self.url('upload_picture'),
                                    files={'picture': f})
+        self._last_request = r
         if delete:
             os.remove(filename)
         return r.text

@@ -95,7 +95,6 @@ def get_notes():
 ###############################################################################
 @app.route('/upload_picture', methods=['POST'])
 def upload_picture():
-    raise NotImplementedError  # TODO
     if 'picture' not in request.files:
         raise Exception('No file part in the POST')
     filedata = request.files['picture']
@@ -109,7 +108,7 @@ def upload_picture():
 
 @app.route('/add_figure', methods=['POST'])
 def add_figure():
-    if request.is_json():
+    if request.is_json:
         args = request.get_json()
     else:
         raise Exception('Arguments are expected to be in JSON format')
@@ -132,7 +131,7 @@ def add_figure():
 
 @app.route('/replace_figure', methods=['POST'])
 def replace_figure():
-    if request.is_json():
+    if request.is_json:
         args = request.get_json()
     else:
         raise Exception('Arguments are expected to be in JSON format')
@@ -147,10 +146,10 @@ def replace_figure():
     keep_aspect = args.get('keep_aspect', True)
     keep_zorder = args.get('keep_zorder', True)
     # Call pyppt method
-    pyppt.replace_figure(fname, pic_no=pic_no, left_no=left_no, top_no=top_no,
-                         zorder_no=zorder_no, slide_no=slide_no,
-                         keep_zorder=keep_zorder, keep_aspect=keep_aspect,
-                         delete=True)
+    pyppt._replace_figure(fname, pic_no=pic_no, left_no=left_no, top_no=top_no,
+                          zorder_no=zorder_no, slide_no=slide_no,
+                          keep_zorder=keep_zorder, keep_aspect=keep_aspect,
+                          delete=True)
     return 'OK'
 
 

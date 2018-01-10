@@ -632,7 +632,7 @@ def _replace_figure(fname, pic_no=None, left_no=None, top_no=None, zorder_no=Non
     pic.Delete()
     # And add a new one
     target_z_order = zorder if keep_zorder else None
-    _add_figure(fname, bbox=bbox, slide_no=slide_no, keep_aspect=keep_aspect,
+    _add_figure(fname, bbox=pos, slide_no=slide_no, keep_aspect=keep_aspect,
                 replace=False, target_z_order=target_z_order,
                 delete_placeholders=delete_placeholders,
                 delete=True)
