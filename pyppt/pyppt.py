@@ -340,28 +340,24 @@ def add_slide(slide_no=None, layout_as=None):
 ###############################################################################
 # Extracting metadata
 ###############################################################################
+def _round_pos(item, ndigits=1):
+    return [round(item.Left, ndigits), round(item.Top, ndigits),
+            round(item.Width, ndigits), round(item.Height, ndigits)]
+
+
 def get_shape_positions(slide_no=None):
     """ Get positions of all shapes in the slide.
         Return list of lists of the format [x, y, w, h, type].
     """
-    return [[item.Left, item.Top, item.Width, item.Height, item.Type]
+    return [_round_pos(item) + [item.Type]
             for item in _shapes(_get_slide(slide_no))]
 
 
-def get_image_positions(slide_no=None, asarray=True, decimals=1):
-    """ Get positions of all images in the slide. If necessary, rounds
-        coordinates to a given decimals (if "decimals" is not None)
+def get_image_positions(slide_no=None):
+    """ Get positions of all images in the slide.
         Return list of lists of the format [x, y, w, h].
     """
-    positions = [[item.Left, item.Top, item.Width, item.Height]
-                 for item in _pictures(_get_slide(slide_no))]
-    if asarray:
-        if decimals is not None:
-            return np.round(np.array(positions), decimals=decimals)
-        else:
-            return np.array(positions)
-    else:
-        return positions
+    return [_round_pos(item) for item in _pictures(_get_slide(slide_no))]
 
 
 def get_slide_dimensions(Presentation=None):

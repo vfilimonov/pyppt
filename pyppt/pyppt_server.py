@@ -77,8 +77,7 @@ def get_shape_positions():
 def get_image_positions():
     print('get_image_positions', request.args.to_dict())
     slide_no = request.args.get('slide_no', default=None, type=int)
-    return repr(pyppt.get_image_positions(slide_no=slide_no,
-                                          asarray=True, decimals=1).to_list())
+    return repr(pyppt.get_image_positions(slide_no=slide_no))
 
 
 @app.route('/get_slide_dimensions')
