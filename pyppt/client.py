@@ -31,7 +31,10 @@ class ClientJavascript(object):
     def post(self, method, **kwargs):
         raise NotImplementedError  # TODO
 
-    def post_and_figure(self, method, filename, **kwargs):
+    def upload_picture(self, filename, delete=False):
+        raise NotImplementedError  # TODO
+
+    def post_and_figure(self, method, filename, delete=True, **kwargs):
         """ Uploads figure to server and then call POST """
         raise NotImplementedError  # TODO
 
@@ -49,7 +52,10 @@ class ClientRequests(object):
     def post(self, method, **kwargs):
         raise NotImplementedError  # TODO
 
-    def post_and_figure(self, method, filename, **kwargs):
+    def upload_picture(self, filename, delete=False):
+        raise NotImplementedError  # TODO
+
+    def post_and_figure(self, method, filename, delete=True, **kwargs):
         """ Uploads figure to server and then call POST """
         raise NotImplementedError  # TODO
 
@@ -156,7 +162,7 @@ def add_figure(bbox=None, slide_no=None, keep_aspect=True, tight=True,
 
 ###############################################################################
 def replace_figure(pic_no=None, left_no=None, top_no=None, zorder_no=None,
-                   slide_no=None, keep_zorder=True, **kwargs):
+                   slide_no=None, keep_zorder=True, tight=True, **kwargs):
     # Save the figure to png in temporary directory
     fname = pyppt._temp_fname()
     if tight:

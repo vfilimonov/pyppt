@@ -456,60 +456,9 @@ def _intersection_area(a, b):
 
 
 ###############################################################################
-def add_figure(bbox=None, slide_no=None, keep_aspect=True, tight=True,
-               delete_placeholders=True, replace=False, **kwargs):
-    """ Add current figure to the active slide (or a slide with a given number).
-
-        Parameters:
-            bbox - Bounding box for the image in the format:
-                    - None - the first empty image placeholder will be used, if
-                             no such placeholders are found, then the 'Center'
-                             value will be used.
-                    - list of coordinates [x, y, width, height]
-                    - string: 'Center', 'Left', 'Right', 'TopLeft', 'TopRight',
-                      'BottomLeft', 'BottomRight', 'CenterL', 'CenterXL', 'Full'
-                      based on the presets, that could be modified.
-                      Preset name is case-insensitive.
-            slide_no - number of the slide (stating from 1), where to add image.
-                       If not specified (None), active slide will be used.
-            keep_aspect - if True, then the aspect ratio of the image will be
-                          preserved, otherwise the image will shrink to fit bbox.
-            tight - if True, then tight_layout() will be used
-            delete_placeholders - if True, then all placeholders will be deleted.
-                                  Else: all empty placeholders will be preserved.
-                                  Default: delete_placeholders=True
-            replace - if True, before adding picture it will first check if
-                      there're any other pictures on the slide that overlap with
-                      the target bbox. Then the picture, that overlap the most
-                      will be replaced by the new one, keeping its position (i.e.
-                      method will act like replace_figure() and target bbox will
-                      be ignored). If no such pictures found - method will add
-                      figure as usual.
-            **kwargs - to be passed to plt.savefig()
-
-        There're two options of how to treat empty placeholders:
-         - delete them all (delete_placeholders=True). In this case everything,
-           which does not have text or figures will be deleted. So if you want
-           to keep them - you should add some text there before add_figure()
-         - keep the all (delete_placeholders=False). In this case, all of them
-           will be preserved even if they are completely hidden by the added
-           figure.
-        The only exception is when bbox is not provided (bbox=None). In this
-        case the figure will be added to the first available empty placeholder
-        (if found) and keep all other placeholders in place even if
-        delete_placeholders is set to True.
-    """
-    # Small hack
-    target_z_order = kwargs.pop('target_z_order', None)
-    # Save the figure to png in temporary directory
-    fname = _temp_fname()
-    if tight:
-        # Usually is an overkill, but is needed sometimes...
-        plt.tight_layout()
-        plt.savefig(fname, bbox_inches='tight', **kwargs)
-    else:
-        plt.savefig(fname, **kwargs)
-
+def _add_figure(fname, bbox=None, slide_no=None, keep_aspect=True, replace=False,
+                delete_placeholders=True, target_z_order=None, delete=True):
+    """ Private method to be used both by public and server """
     Slide = _get_slide(slide_no)
 
     # Parse bbox name if necessary
@@ -568,7 +517,7 @@ def add_figure(bbox=None, slide_no=None, keep_aspect=True, tight=True,
     filled_bbox = [shape.Left, shape.Top, shape.Width, shape.Height]
 
     # Check if the bbox is correctly filled.
-    if np.max(np.abs(np.array(bbox)-np.array(filled_bbox))) > 0.1:
+    if np.max(np.abs(np.array(bbox) - np.array(filled_bbox))) > 0.1:
         # Should never happen...
         warnings.warn('BBox of the inserted figure was not respected: '
                       '(%.1f, %.1f, %.1f %.1f) instead of (%.1f, %.1f, %.1f %.1f)'
@@ -578,29 +527,75 @@ def add_figure(bbox=None, slide_no=None, keep_aspect=True, tight=True,
     # Clean-up
     if not use_placeholder and not delete_placeholders and not replace:
         _revert_filled_placeholders(items)
-    os.remove(fname)
+    if delete:
+        os.remove(fname)
+
+
+def add_figure(bbox=None, slide_no=None, keep_aspect=True, tight=True,
+               delete_placeholders=True, replace=False, **kwargs):
+    """ Add current figure to the active slide (or a slide with a given number).
+
+        Parameters:
+            bbox - Bounding box for the image in the format:
+                    - None - the first empty image placeholder will be used, if
+                             no such placeholders are found, then the 'Center'
+                             value will be used.
+                    - list of coordinates [x, y, width, height]
+                    - string: 'Center', 'Left', 'Right', 'TopLeft', 'TopRight',
+                      'BottomLeft', 'BottomRight', 'CenterL', 'CenterXL', 'Full'
+                      based on the presets, that could be modified.
+                      Preset name is case-insensitive.
+            slide_no - number of the slide (stating from 1), where to add image.
+                       If not specified (None), active slide will be used.
+            keep_aspect - if True, then the aspect ratio of the image will be
+                          preserved, otherwise the image will shrink to fit bbox.
+            tight - if True, then tight_layout() will be used
+            delete_placeholders - if True, then all placeholders will be deleted.
+                                  Else: all empty placeholders will be preserved.
+                                  Default: delete_placeholders=True
+            replace - if True, before adding picture it will first check if
+                      there're any other pictures on the slide that overlap with
+                      the target bbox. Then the picture, that overlap the most
+                      will be replaced by the new one, keeping its position (i.e.
+                      method will act like replace_figure() and target bbox will
+                      be ignored). If no such pictures found - method will add
+                      figure as usual.
+            **kwargs - to be passed to plt.savefig()
+
+        There're two options of how to treat empty placeholders:
+         - delete them all (delete_placeholders=True). In this case everything,
+           which does not have text or figures will be deleted. So if you want
+           to keep them - you should add some text there before add_figure()
+         - keep the all (delete_placeholders=False). In this case, all of them
+           will be preserved even if they are completely hidden by the added
+           figure.
+        The only exception is when bbox is not provided (bbox=None). In this
+        case the figure will be added to the first available empty placeholder
+        (if found) and keep all other placeholders in place even if
+        delete_placeholders is set to True.
+    """
+    # Small hack
+    target_z_order = kwargs.pop('target_z_order', None)
+    # Save the figure to png in temporary directory
+    fname = _temp_fname()
+    if tight:
+        # Usually is an overkill, but is needed sometimes...
+        plt.tight_layout()
+        plt.savefig(fname, bbox_inches='tight', **kwargs)
+    else:
+        plt.savefig(fname, **kwargs)
+    # Call to private method
+    _add_figure(fname, bbox=bbox, slide_no=slide_no, keep_aspect=keep_aspect,
+                replace=replace, delete_placeholders=delete_placeholders,
+                target_z_order=target_z_order,
+                delete=True)
 
 
 ###############################################################################
-def replace_figure(pic_no=None, left_no=None, top_no=None, zorder_no=None,
-                   slide_no=None, keep_zorder=True, **kwargs):
-    """ Delete an image from the slide and add a new one on the same place
-
-        Parameters:
-            pic_no - If set, select picture by position in the list of objects
-            left_no - If set, select picture by position from the left
-            top_no - If set, select picture by position from the top
-            zorder_no - If set, select picture by z-order (from the front)
-                        Note: indexing starts at 1.
-                        Note: only one of pic_no, left_no, top_no, z_order_no
-                        could be set at the same time. If all of them are None,
-                        then default of pic_no=1 will be used.
-            slide_no - number of the slide (stating from 1), where to add image.
-                       If not specified (None), active slide will be used.
-            keep_zorder - If True, then the new figure will be moved to the
-                          z-order, as the original one.
-            **kwargs - to be passed to add_figure()
-    """
+def _replace_figure(fname, pic_no=None, left_no=None, top_no=None, zorder_no=None,
+                    slide_no=None, keep_zorder=True, keep_aspect=True,
+                    delete_placeholders=True, delete=True):
+    """ Private method to be used both by public and server """
     # Get all images
     pics = _pictures(_get_slide(slide_no))
 
@@ -641,5 +636,44 @@ def replace_figure(pic_no=None, left_no=None, top_no=None, zorder_no=None,
     pic.Delete()
     # And add a new one
     target_z_order = zorder if keep_zorder else None
-    add_figure(bbox=pos, slide_no=slide_no, target_z_order=target_z_order,
-               replace=False, **kwargs)
+    _add_figure(fname, bbox=bbox, slide_no=slide_no, keep_aspect=keep_aspect,
+                replace=False, target_z_order=target_z_order,
+                delete_placeholders=delete_placeholders,
+                delete=True)
+
+
+def replace_figure(pic_no=None, left_no=None, top_no=None, zorder_no=None,
+                   slide_no=None, keep_zorder=True, keep_aspect=True,
+                   delete_placeholders=True, tight=True, **kwargs):
+    """ Delete an image from the slide and add a new one on the same place
+
+        Parameters:
+            pic_no - If set, select picture by position in the list of objects
+            left_no - If set, select picture by position from the left
+            top_no - If set, select picture by position from the top
+            zorder_no - If set, select picture by z-order (from the front)
+                        Note: indexing starts at 1.
+                        Note: only one of pic_no, left_no, top_no, z_order_no
+                        could be set at the same time. If all of them are None,
+                        then default of pic_no=1 will be used.
+            slide_no - number of the slide (stating from 1), where to add image.
+                       If not specified (None), active slide will be used.
+            keep_zorder - If True, then the new figure will be moved to the
+                          z-order, as the original one.
+            keep_aspect / delete_placeholders - to be passed to add_figure()
+            **kwargs - to be passed to plt.savefig()
+    """
+    # Save the figure to png in temporary directory
+    fname = _temp_fname()
+    if tight:
+        # Usually is an overkill, but is needed sometimes...
+        plt.tight_layout()
+        plt.savefig(fname, bbox_inches='tight', **kwargs)
+    else:
+        plt.savefig(fname, **kwargs)
+    # Call to private method
+    _replace_figure(fname, pic_no=pic_no, left_no=left_no, top_no=top_no,
+                    zorder_no=zorder_no, slide_no=slide_no,
+                    keep_zorder=keep_zorder, keep_aspect=keep_aspec,
+                    delete_placeholders=delete_placeholders,
+                    delete=True)
