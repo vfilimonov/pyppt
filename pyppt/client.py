@@ -5,25 +5,40 @@
 ###############################################################################
 import matplotlib.pyplot as plt
 import json
+import os
 
 try:
-    import IPython
+    from urllib import urlencode  # Python 2
 except ImportError:
-    IPython = None
-try:
-    import requests
-except ImportError:
-    requests = None
+    from urllib.parse import urlencode  # Python 3
 
 import pyppt as pyppt
 from ._ver_ import __version__, __author__, __email__, __url__
 
 
 ###############################################################################
-class ClientJavascript(object):
+class ClientGeneric(object):
     def __init__(self, host, port):
-        import IPython  # To throw ImportError if absent
-        self.url = 'http://%s:%s/' % (host, port)
+        self._url = 'http://%s:%s/' % (host, port)
+        self._init_lib_()
+
+    def _init_lib_(self):
+        pass
+
+    def url(self, method, **kwargs):
+        res = self._url + method
+        if kwargs is not None:
+            res = res + '?' + urlencode(kwargs)
+        self._last_url = res
+        return res
+
+
+###############################################################################
+class ClientJavascript(ClientGeneric):
+    def _init_lib_(self):
+        import IPython  # local references to library
+        self.HTML = IPython.display.HTML
+        self.Javascript = IPython.display.Javascript
 
     def get(self, method, **kwargs):
         raise NotImplementedError  # TODO
@@ -40,24 +55,29 @@ class ClientJavascript(object):
 
 
 ###############################################################################
-class ClientRequests(object):
-    def __init__(self, host, port):
-        import requests  # To throw ImportError if absent
-        self.url = 'http://%s:%s' % (host, port)
-        raise NotImplementedError  # TODO
+class ClientRequests(ClientGeneric):
+    def _init_lib_(self):
+        import requests  # local references to library
+        self.requests = requests
 
     def get(self, method, **kwargs):
-        raise NotImplementedError  # TODO
+        return self.requests.get(self.url(method, **kwargs)).text
 
     def post(self, method, **kwargs):
-        raise NotImplementedError  # TODO
+        return self.requests.post(self.url(method), json=kwargs).text
 
     def upload_picture(self, filename, delete=False):
-        raise NotImplementedError  # TODO
+        with open(filename, 'rb') as f:
+            r = self.requests.post(self.url('upload_picture'),
+                                   files={'picture': f})
+        if delete:
+            os.remove(filename)
+        return r.text
 
     def post_and_figure(self, method, filename, delete=True, **kwargs):
         """ Uploads figure to server and then call POST """
-        raise NotImplementedError  # TODO
+        remote_fname = self.upload_picture(filename, delete=delete)
+        return self.post(method, filename=remote_fname, **kwargs)
 
 
 ###############################################################################
