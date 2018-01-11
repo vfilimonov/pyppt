@@ -4,9 +4,12 @@
 # (c) Vladimir Filimonov, January 2018
 ###############################################################################
 from __future__ import absolute_import
+from builtins import str
 import matplotlib.pyplot as plt
 import json
 import os
+import base64
+import uuid
 
 try:
     from urllib import urlencode  # Python 2
@@ -17,6 +20,105 @@ import pyppt.core as pyppt
 from pyppt._ver_ import __version__, __author__, __email__, __url__
 
 
+###############################################################################
+# Javscript templates
+###############################################################################
+_html_div = """<div id="{id}" class="pyppt"></div>"""
+
+_js_div = """var div = document.getElementById("{id}");
+if (div){{
+{script}
+}}
+"""
+
+# Based on https://stackoverflow.com/questions/16245767/
+_js_init = """
+function b64toBlob(b64Data, contentType, sliceSize) {
+    contentType = contentType || '';
+    sliceSize = sliceSize || 512;
+
+    var byteCharacters = atob(b64Data);
+    var byteArrays = [];
+
+    for (var offset = 0; offset < byteCharacters.length; offset += sliceSize) {
+        var slice = byteCharacters.slice(offset, offset + sliceSize);
+        var byteNumbers = new Array(slice.length);
+        for (var i = 0; i < slice.length; i++) {
+            byteNumbers[i] = slice.charCodeAt(i);
+        }
+        var byteArray = new Uint8Array(byteNumbers);
+        byteArrays.push(byteArray);
+    }
+
+    var blob = new Blob(byteArrays, {type: contentType});
+    return blob;
+};
+
+function getResults(data, div) {
+    div.textContent = data;
+    Jupyter.notebook.kernel.execute('_results_js_ = "' + data + '"');
+};
+"""
+
+_js_get = """$.get("{url}", function(data){{getResults(data, div);}}); """
+
+_js_post = """$.ajax({{
+    url: "{url}",
+    type: "POST",
+    data: '{json}',
+    contentType: "application/json; charset=utf-8",
+    success: function(data){{getResults(data, div);}},
+}});
+"""
+
+_js_upload = """
+var base64ImageContent = "{data}";
+var blob = b64toBlob(base64ImageContent, 'image/png');
+var formData = new FormData();
+formData.append("picture", blob);
+
+$.ajax({{
+    url: "{url}",
+    type: "POST",
+    cache: false,
+    contentType: false,
+    processData: false,
+    data: formData,
+    success: function(data){{getResults(data, div);}},
+}});
+"""
+
+_js_upload_and_post = """
+var base64ImageContent = "{data}";
+var blob = b64toBlob(base64ImageContent, 'image/png');
+var formData = new FormData();
+formData.append("picture", blob);
+
+$.ajax({{
+    url: "{url1}",
+    type: "POST",
+    cache: false,
+    contentType: false,
+    processData: false,
+    data: formData,
+    success: function(data){{
+        var new_data = JSON.parse('{json}');
+        new_data["filename"] = data;
+
+        $.ajax({{
+            url: "{url2}",
+            type: "POST",
+            data: JSON.stringify(new_data),
+            contentType: "application/json; charset=utf-8",
+            success: function(data2){{getResults(data2, div);}},
+        }});
+    }},
+}});
+"""
+
+
+###############################################################################
+# Client Classes
 ###############################################################################
 class ClientGeneric(object):
     def __init__(self, host, port):
@@ -34,26 +136,66 @@ class ClientGeneric(object):
         self._last_url = res
         return res
 
+    def __getattr__(self, name):
+        # to be called when Client is not initialized
+        if name in ('get', 'post', 'upload_picture', 'post_and_figure'):
+            raise Exception('Client was not initialized. Run init_client() first.')
+
+
+_client = ClientGeneric('', '')
+
 
 ###############################################################################
 class ClientJavascript(ClientGeneric):
     def _init_lib_(self):
         import IPython  # local references to library
-        self.HTML = IPython.display.HTML
-        self.Javascript = IPython.display.Javascript
+        self.display = IPython.display
+
+    def _div_id(self):
+        """ Unique name for DIV """
+        return 'pptdiv_%s' % (str(uuid.uuid4())[:8])
+
+    def _run_js(self, script):
+        div_id = self._div_id()
+        self._last_js_code = code = _js_div.format(id=div_id, script=script)
+
+        self.display.display(self.display.HTML(_html_div.format(id=div_id)))
+        self.display.display(self.display.Javascript(code))
+        return None
+
+    def init_js(self):
+        return self._run_js(_js_init)
 
     def get(self, method, **kwargs):
-        raise NotImplementedError  # TODO
+        return self._run_js(_js_get.format(url=self.url(method, **kwargs)))
 
     def post(self, method, **kwargs):
-        raise NotImplementedError  # TODO
+        args = {_: kwargs[_] for _ in kwargs if kwargs[_] is not None}
+        return self._run_js(_js_post.format(url=self.url(method),
+                                            json=json.dumps(args)))
+
+    @staticmethod
+    def _read_base64(filename, delete=False):
+        with open(filename, 'rb') as f:
+            data = f.read()
+        data = base64.standard_b64encode(data)
+        if delete:
+            os.remove(filename)
+        return str(data, 'utf-8')
 
     def upload_picture(self, filename, delete=False):
-        raise NotImplementedError  # TODO
+        code = _js_upload.format(url=self.url('upload_picture'),
+                                 data=self._read_base64(filename, delete))
+        return self._run_js(code)
 
     def post_and_figure(self, method, filename, delete=True, **kwargs):
         """ Uploads figure to server and then call POST """
-        raise NotImplementedError  # TODO
+        args = {_: kwargs[_] for _ in kwargs if kwargs[_] is not None}
+        code = _js_upload_and_post.format(url1=self.url('upload_picture'),
+                                          url2=self.url(method),
+                                          data=self._read_base64(filename, delete),
+                                          json=json.dumps(args))
+        return self._run_js(code)
 
 
 ###############################################################################
@@ -110,6 +252,8 @@ def init_client(host='127.0.0.1', port='5000', javascript=True):
     # Hijack matplotlib
     plt.add_figure = add_figure
     plt.replace_figure = replace_figure
+    if javascript:
+        return _client.init_js()
 
 
 ###############################################################################
