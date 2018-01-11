@@ -7,6 +7,7 @@ from __future__ import print_function, absolute_import
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 import json
+import optparse
 
 import pyppt.core as pyppt
 
@@ -158,6 +159,24 @@ def replace_figure():
 
 
 ###############################################################################
-# Run the server
-# TODO: command-line arguments: http://flask.pocoo.org/snippets/133/
-app.run(host='10.211.55.3')
+def flaskrun(app, default_host="127.0.0.1", default_port="5000"):
+    """ Runs Flask instance using command line arguments """
+    # Based on http://flask.pocoo.org/snippets/133/
+    parser = optparse.OptionParser()
+    parser.add_option("-H", "--host",
+                      help="Hostname of the Flask app [default %s]" % default_host,
+                      default=default_host)
+    parser.add_option("-P", "--port",
+                      help="Port for the Flask app [default %s]" % default_port,
+                      default=default_port)
+    parser.add_option("-d", "--debug",
+                      action="store_true", dest="debug",
+                      help=optparse.SUPPRESS_HELP)
+
+    options, _ = parser.parse_args()
+    app.run(debug=options.debug, host=options.host, port=int(options.port))
+
+
+###############################################################################
+if __name__ == '__main__':
+    flaskrun(app)
