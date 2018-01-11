@@ -424,8 +424,12 @@ def _scale_bbox(bbox):
     return bbox
 
 
-def _keep_aspect(bbox):
-    w, h = np.asfarray(plt.gcf().get_size_inches())
+def _keep_aspect(bbox, w=None, h=None):
+    if w is None and h is None:
+        # Should happen only on local Windows machine
+        w, h = np.asfarray(plt.gcf().get_size_inches())
+    else:
+        w, h = float(w), float(h)
     bx, by, bw, bh = np.asfarray(bbox)
     aspect_fig = w / h
     aspect_bbox = bw / bh
@@ -453,7 +457,8 @@ def _intersection_area(a, b):
 
 ###############################################################################
 def _add_figure(fname, bbox=None, slide_no=None, keep_aspect=True, replace=False,
-                delete_placeholders=True, target_z_order=None, delete=True):
+                delete_placeholders=True, target_z_order=None, delete=True,
+                w=None, h=None):
     """ Private method to be used both by public and server """
     Slide = _get_slide(slide_no)
 
@@ -495,7 +500,7 @@ def _add_figure(fname, bbox=None, slide_no=None, keep_aspect=True, replace=False
             replace = False
 
     if keep_aspect:
-        bbox = _keep_aspect(bbox)
+        bbox = _keep_aspect(bbox, w, h)
 
     # Now insert to PowerPoint
     if not use_placeholder and not replace:
@@ -590,7 +595,7 @@ def add_figure(bbox=None, slide_no=None, keep_aspect=True, tight=True,
 ###############################################################################
 def _replace_figure(fname, pic_no=None, left_no=None, top_no=None, zorder_no=None,
                     slide_no=None, keep_zorder=True, keep_aspect=True,
-                    delete_placeholders=True, delete=True):
+                    delete_placeholders=True, delete=True, w=None, h=None):
     """ Private method to be used both by public and server """
     # Get all images
     pics = _pictures(_get_slide(slide_no))
@@ -635,7 +640,7 @@ def _replace_figure(fname, pic_no=None, left_no=None, top_no=None, zorder_no=Non
     _add_figure(fname, bbox=pos, slide_no=slide_no, keep_aspect=keep_aspect,
                 replace=False, target_z_order=target_z_order,
                 delete_placeholders=delete_placeholders,
-                delete=True)
+                delete=True, w=w, h=h)
 
 
 def replace_figure(pic_no=None, left_no=None, top_no=None, zorder_no=None,
@@ -670,6 +675,6 @@ def replace_figure(pic_no=None, left_no=None, top_no=None, zorder_no=None,
     # Call to private method
     _replace_figure(fname, pic_no=pic_no, left_no=left_no, top_no=top_no,
                     zorder_no=zorder_no, slide_no=slide_no,
-                    keep_zorder=keep_zorder, keep_aspect=keep_aspec,
+                    keep_zorder=keep_zorder, keep_aspect=keep_aspect,
                     delete_placeholders=delete_placeholders,
                     delete=True)

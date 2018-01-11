@@ -170,8 +170,7 @@ def get_notes():
 
 ###############################################################################
 ###############################################################################
-def add_figure(bbox=None, slide_no=None, keep_aspect=True, tight=True,
-               delete_placeholders=True, replace=False, **kwargs):
+def _save_figure(tight, **kwargs):
     # Save the figure to png in temporary directory
     fname = pyppt._temp_fname()
     if tight:
@@ -180,29 +179,27 @@ def add_figure(bbox=None, slide_no=None, keep_aspect=True, tight=True,
         plt.savefig(fname, bbox_inches='tight', **kwargs)
     else:
         plt.savefig(fname, **kwargs)
+    w, h = plt.gcf().get_size_inches()
+    return fname, w, h
 
+
+def add_figure(bbox=None, slide_no=None, keep_aspect=True, tight=True,
+               delete_placeholders=True, replace=False, **kwargs):
+    fname, w, h = _save_figure(tight, **kwargs)
     return _client.post_and_figure('add_figure', filename=fname, bbox=bbox,
                                    slide_no=slide_no, keep_aspect=keep_aspect,
                                    delete_placeholders=delete_placeholders,
-                                   replace=replace, **kwargs)
+                                   replace=replace, w=w, h=h)
 
 
 ###############################################################################
 def replace_figure(pic_no=None, left_no=None, top_no=None, zorder_no=None,
                    slide_no=None, keep_zorder=True, tight=True, **kwargs):
-    # Save the figure to png in temporary directory
-    fname = pyppt._temp_fname()
-    if tight:
-        # Usually is an overkill, but is needed sometimes...
-        plt.tight_layout()
-        plt.savefig(fname, bbox_inches='tight', **kwargs)
-    else:
-        plt.savefig(fname, **kwargs)
-
+    fname, w, h = _save_figure(tight, **kwargs)
     return _client.post_and_figure('replace_figure', filename=fname, pic_no=pic_no,
                                    left_no=left_no, top_no=top_no,
                                    zorder_no=zorder_no, slide_no=slide_no,
-                                   keep_zorder=keep_zorder, **kwargs)
+                                   keep_zorder=keep_zorder, w=w, h=h)
 
 
 ###############################################################################

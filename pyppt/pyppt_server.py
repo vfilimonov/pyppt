@@ -121,11 +121,13 @@ def add_figure():
     replace = args.get('replace', False)
     delete_placeholders = args.get('delete_placeholders', True)
     target_z_order = args.get('target_z_order', None)
+    w = args.get('w', None)
+    h = args.get('h', None)
     # Call pyppt method
     pyppt._add_figure(fname, bbox=bbox, slide_no=slide_no, replace=replace,
                       keep_aspect=keep_aspect, target_z_order=target_z_order,
                       delete_placeholders=delete_placeholders,
-                      delete=True)
+                      delete=True, w=w, h=h)
     return 'OK'
 
 
@@ -145,11 +147,13 @@ def replace_figure():
     slide_no = args.get('slide_no', None)
     keep_aspect = args.get('keep_aspect', True)
     keep_zorder = args.get('keep_zorder', True)
+    w = args.get('w', None)
+    h = args.get('h', None)
     # Call pyppt method
     pyppt._replace_figure(fname, pic_no=pic_no, left_no=left_no, top_no=top_no,
                           zorder_no=zorder_no, slide_no=slide_no,
                           keep_zorder=keep_zorder, keep_aspect=keep_aspect,
-                          delete=True)
+                          delete=True, w=w, h=h)
     return 'OK'
 
 
