@@ -1,5 +1,5 @@
 # Import library contents
-from .pyppt import *
+from .core import *
 
 # Metadata to be shared between module and setup.py
 from ._ver_ import __version__, __author__, __email__, __url__

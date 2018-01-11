@@ -12,7 +12,7 @@ try:
 except ImportError:
     from urllib.parse import urlencode  # Python 3
 
-import pyppt.pyppt as pyppt
+import core as pyppt
 from ._ver_ import __version__, __author__, __email__, __url__
 
 

@@ -8,7 +8,7 @@ from flask import Flask, request, jsonify
 from flask_cors import CORS
 import json
 
-import pyppt as pyppt
+import core as pyppt
 
 
 ###############################################################################
@@ -160,4 +160,4 @@ def replace_figure():
 ###############################################################################
 # Run the server
 # TODO: command-line arguments: http://flask.pocoo.org/snippets/133/
-app.run()
+app.run(host='10.211.55.3')
