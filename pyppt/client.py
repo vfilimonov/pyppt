@@ -3,6 +3,7 @@
 #
 # (c) Vladimir Filimonov, January 2018
 ###############################################################################
+from __future__ import absolute_import
 import matplotlib.pyplot as plt
 import json
 import os
@@ -12,8 +13,8 @@ try:
 except ImportError:
     from urllib.parse import urlencode  # Python 3
 
-import core as pyppt
-from ._ver_ import __version__, __author__, __email__, __url__
+import pyppt.core as pyppt
+from pyppt._ver_ import __version__, __author__, __email__, __url__
 
 
 ###############################################################################

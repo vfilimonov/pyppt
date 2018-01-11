@@ -3,12 +3,12 @@
 #
 # (c) Vladimir Filimonov, January 2018
 ###############################################################################
-from __future__ import print_function
+from __future__ import print_function, absolute_import
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 import json
 
-import core as pyppt
+import pyppt.core as pyppt
 
 
 ###############################################################################

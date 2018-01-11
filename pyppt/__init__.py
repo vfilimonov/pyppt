@@ -1,3 +1,6 @@
+# Python 2/3 compatibility
+from __future__ import absolute_import
+
 # Import library contents
 from .core import *
 
