@@ -22,10 +22,10 @@ CORS(app)
 ###############################################################################
 @app.route('/')
 def home():
-    from _ver_ import __author__, __email__, __url__
-    return ('<html><body>pyppt connector by %s (<a href="mailto:%s">%s</a>)'
+    from _ver_ import __author__, __email__, __url__, __version__
+    return ('<html><body>pyppt connector ver. %s by %s (<a href="mailto:%s">%s</a>)'
             '<br>See docs at <a href="%s">%s</a></body></html>'
-            % (__author__, __email__, __email__, __url__, __url__))
+            % (__version__, __author__, __email__, __email__, __url__, __url__))
 
 
 ###############################################################################
