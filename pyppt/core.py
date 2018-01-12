@@ -25,6 +25,9 @@ except NameError:
     unicode = str
     basestring = (str, bytes)
 
+# Metadata to be shared between module and setup.py
+from pyppt._ver_ import __version__, __author__, __email__, __url__
+
 _LOCALHOST = '127.0.0.1'
 _DEFAULT_PORT = '8877'
 
@@ -151,7 +154,6 @@ def _temp_fname():
 
 def _check_win32com():
     if win32client is None:
-        from _ver_ import __url__
         raise Exception('win32com module is not found (current platform: %s). '
                         'Most likely the code is running on the remote server, '
                         'and thus the core functionality will not work. '

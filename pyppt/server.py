@@ -20,7 +20,6 @@ CORS(app)
 ###############################################################################
 @app.route('/')
 def home():
-    from _ver_ import __author__, __email__, __url__, __version__
     try:
         pyppt._check_win32com()
         ok = ''
@@ -28,7 +27,8 @@ def home():
         ok = '<br><br><font color="#ff0033">NB! ' + str(e) + '</font>'
     msg = ('<html><body>pyppt connector ver. %s by %s (<a href="mailto:%s">%s</a>)'
            '<br>See docs at <a href="%s">%s</a>%s</body></html>'
-           % (__version__, __author__, __email__, __email__, __url__, __url__, ok))
+           % (pyppt.__version__, pyppt.__author__, pyppt.__email__,
+              pyppt.__email__, pyppt.__url__, pyppt.__url__, ok))
     return msg
 
 
