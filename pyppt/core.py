@@ -503,10 +503,10 @@ def _add_figure(fname, bbox=None, slide_no=None, keep_aspect=True, replace=False
         bbox = _keep_aspect(bbox, w, h)
 
     # Now insert to PowerPoint
-    if not use_placeholder and not replace:
+    if not use_placeholder:
         if delete_placeholders:
             _delete_empty_placeholders(Slide)
-        else:
+        elif not replace:
             items = _fill_empty_placeholders(Slide)
     shape = Slide.Shapes.AddPicture(FileName=fname, LinkToFile=False,
                                     SaveWithDocument=True, Left=bbox[0],
@@ -521,7 +521,9 @@ def _add_figure(fname, bbox=None, slide_no=None, keep_aspect=True, replace=False
     if np.max(np.abs(np.array(bbox) - np.array(filled_bbox))) > 0.1:
         # Should never happen...
         warnings.warn('BBox of the inserted figure was not respected: '
-                      '(%.1f, %.1f, %.1f %.1f) instead of (%.1f, %.1f, %.1f %.1f)'
+                      '(%.1f, %.1f, %.1f %.1f) instead of (%.1f, %.1f, %.1f %.1f).'
+                      'Perhaps, the figure was originally in a placeholder. In '
+                      'this case consider setting delete_placeholders=True.'
                       % (shape.Left, shape.Top, shape.Width, shape.Height,
                          bbox[0], bbox[1], bbox[2], bbox[3]))
 
