@@ -23,12 +23,11 @@ from pyppt._ver_ import __version__, __author__, __email__, __url__
 ###############################################################################
 # Javscript templates
 ###############################################################################
-_html_div = """<div id="{id}" class="pyppt"></div>"""
-
-_js_div = """var div = document.getElementById("{id}");
-if (div){{
+_html_js_div = """<div id="{id}" class="pyppt"></div><script>
+var div = document.getElementById("{id}");
+console.log("[pyppt] Executing {id}...");
 {script}
-}}
+</script>
 """
 
 # Based on https://stackoverflow.com/questions/16245767/
@@ -56,8 +55,12 @@ function b64toBlob(b64Data, contentType, sliceSize) {
 
 function getResults(data, div) {
     div.textContent = data;
-    Jupyter.notebook.kernel.execute('_results_js_ = "' + data + '"');
+    console.log("[pyppt] Server response: " + data);
+    var kernel = Jupyter.notebook.kernel
+    if (kernel) { kernel.execute('_results_js_ = "' + data + '"'); }
 };
+
+getResults("Init: OK", div);
 """
 
 _js_get = """$.get("{url}", function(data){{getResults(data, div);}}); """
@@ -156,11 +159,8 @@ class ClientJavascript(ClientGeneric):
         return 'pptdiv_%s' % (str(uuid.uuid4())[:8])
 
     def _run_js(self, script):
-        div_id = self._div_id()
-        self._last_js_code = code = _js_div.format(id=div_id, script=script)
-
-        self.display.display(self.display.HTML(_html_div.format(id=div_id)))
-        self.display.display(self.display.Javascript(code))
+        self._last_code = _html_js_div.format(id=self._div_id(), script=script)
+        self.display.display(self.display.HTML(self._last_code))
         return None
 
     def init_js(self):
