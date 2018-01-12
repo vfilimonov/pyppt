@@ -13,8 +13,6 @@ import pyppt.core as pyppt
 
 
 ###############################################################################
-pyppt._check_win32com()
-
 app = Flask(__name__)
 CORS(app)
 
@@ -23,9 +21,15 @@ CORS(app)
 @app.route('/')
 def home():
     from _ver_ import __author__, __email__, __url__, __version__
-    return ('<html><body>pyppt connector ver. %s by %s (<a href="mailto:%s">%s</a>)'
-            '<br>See docs at <a href="%s">%s</a></body></html>'
-            % (__version__, __author__, __email__, __email__, __url__, __url__))
+    try:
+        pyppt._check_win32com()
+        ok = ''
+    except Exception as e:
+        ok = '<br><br><font color="#ff0033">NB! ' + str(e) + '</font>'
+    msg = ('<html><body>pyppt connector ver. %s by %s (<a href="mailto:%s">%s</a>)'
+           '<br>See docs at <a href="%s">%s</a>%s</body></html>'
+           % (__version__, __author__, __email__, __email__, __url__, __url__, ok))
+    return msg
 
 
 ###############################################################################
@@ -159,7 +163,7 @@ def replace_figure():
 
 
 ###############################################################################
-def flaskrun(app, default_host="127.0.0.1", default_port="5000"):
+def flaskrun(app, default_host=pyppt._LOCALHOST, default_port=pyppt._DEFAULT_PORT):
     """ Runs Flask instance using command line arguments """
     # Based on http://flask.pocoo.org/snippets/133/
     parser = optparse.OptionParser()
@@ -177,6 +181,10 @@ def flaskrun(app, default_host="127.0.0.1", default_port="5000"):
     app.run(debug=options.debug, host=options.host, port=int(options.port))
 
 
+def pyppt_server():
+    flaskrun(app)
+
+
 ###############################################################################
 if __name__ == '__main__':
-    flaskrun(app)
+    pyppt_server()

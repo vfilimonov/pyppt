@@ -231,7 +231,7 @@ class ClientRequests(ClientGeneric):
 
 
 ###############################################################################
-def init_client(host='127.0.0.1', port='5000', javascript=True):
+def init_client(host=pyppt._LOCALHOST, port=pyppt._DEFAULT_PORT, javascript=True):
     """ Initialize client on the remote server.
 
         By default it will be using IPython notebook as a proxy and will embed

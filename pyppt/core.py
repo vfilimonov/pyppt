@@ -25,6 +25,9 @@ except NameError:
     unicode = str
     basestring = (str, bytes)
 
+_LOCALHOST = '127.0.0.1'
+_DEFAULT_PORT = '8877'
+
 ###############################################################################
 # Some constants from MSDN MS Office reference
 # See also VBA reference: https://github.com/OfficeDev/VBA-content
@@ -150,7 +153,8 @@ def _check_win32com():
     if win32client is None:
         from _ver_ import __url__
         raise Exception('win32com module is not found (current platform: %s). '
-                        'Most likely the code is running on the remote server. '
+                        'Most likely the code is running on the remote server, '
+                        'and thus the core functionality will not work. '
                         'Check the documentation for the possible solution: %s.'
                         % (sys.platform, __url__))
 
