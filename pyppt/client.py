@@ -1,0 +1,352 @@
+###############################################################################
+# IPython/Javascript client for the remote notebook
+#
+# (c) Vladimir Filimonov, January 2018
+###############################################################################
+from __future__ import absolute_import
+from builtins import str
+import matplotlib.pyplot as plt
+import json
+import os
+import base64
+import uuid
+
+try:
+    from urllib import urlencode  # Python 2
+except ImportError:
+    from urllib.parse import urlencode  # Python 3
+
+import pyppt.core as pyppt
+from pyppt._ver_ import __version__, __author__, __email__, __url__
+
+
+###############################################################################
+# Javscript templates
+###############################################################################
+_html_js_div = """<div id="{id}" class="pyppt"></div><script>
+var div = document.getElementById("{id}");
+console.log("[pyppt] Executing {id}...");
+{script}
+</script>
+"""
+
+# Based on https://stackoverflow.com/questions/16245767/
+_js_init = """
+function b64toBlob(b64Data, contentType, sliceSize) {
+    contentType = contentType || '';
+    sliceSize = sliceSize || 512;
+
+    var byteCharacters = atob(b64Data);
+    var byteArrays = [];
+
+    for (var offset = 0; offset < byteCharacters.length; offset += sliceSize) {
+        var slice = byteCharacters.slice(offset, offset + sliceSize);
+        var byteNumbers = new Array(slice.length);
+        for (var i = 0; i < slice.length; i++) {
+            byteNumbers[i] = slice.charCodeAt(i);
+        }
+        var byteArray = new Uint8Array(byteNumbers);
+        byteArrays.push(byteArray);
+    }
+
+    var blob = new Blob(byteArrays, {type: contentType});
+    return blob;
+};
+
+function getResults(data, div) {
+    div.textContent = data;
+    console.log("[pyppt] Server response: " + data);
+    var kernel = Jupyter.notebook.kernel
+    if (kernel) { kernel.execute('_results_pyppt_js_ = "' + data + '"'); }
+};
+
+getResults("Init: OK", div);
+"""
+
+_js_get = """$.get("{url}", function(data){{getResults(data, div);}}); """
+
+_js_post = """$.ajax({{
+    url: "{url}",
+    type: "POST",
+    data: '{json}',
+    contentType: "application/json; charset=utf-8",
+    success: function(data){{getResults(data, div);}},
+}});
+"""
+
+_js_upload = """
+var base64ImageContent = "{data}";
+var blob = b64toBlob(base64ImageContent, 'image/png');
+var formData = new FormData();
+formData.append("picture", blob);
+
+$.ajax({{
+    url: "{url}",
+    type: "POST",
+    cache: false,
+    contentType: false,
+    processData: false,
+    data: formData,
+    success: function(data){{getResults(data, div);}},
+}});
+"""
+
+_js_upload_and_post = """
+var base64ImageContent = "{data}";
+var blob = b64toBlob(base64ImageContent, 'image/png');
+var formData = new FormData();
+formData.append("picture", blob);
+
+$.ajax({{
+    url: "{url1}",
+    type: "POST",
+    cache: false,
+    contentType: false,
+    processData: false,
+    data: formData,
+    success: function(data){{
+        var new_data = JSON.parse('{json}');
+        new_data["filename"] = data;
+
+        $.ajax({{
+            url: "{url2}",
+            type: "POST",
+            data: JSON.stringify(new_data),
+            contentType: "application/json; charset=utf-8",
+            success: function(data2){{getResults(data2, div);}},
+        }});
+    }},
+}});
+"""
+
+
+###############################################################################
+# Client Classes
+###############################################################################
+class ClientGeneric(object):
+    def __init__(self, host, port):
+        self._url = 'http://%s:%s/' % (host, port)
+        self._init_lib_()
+
+    def _init_lib_(self):
+        pass
+
+    def url(self, method, **kwargs):
+        res = self._url + method
+        args = {_: kwargs[_] for _ in kwargs if kwargs[_] is not None}
+        if len(args) > 0:
+            res = res + '?' + urlencode(args)
+        self._last_url = res
+        return res
+
+    def __getattr__(self, name):
+        # to be called when Client is not initialized
+        if name in ('get', 'post', 'upload_picture', 'post_and_figure'):
+            raise Exception('Client was not initialized. Run init_client() first.')
+
+
+_client = ClientGeneric('', '')
+
+
+###############################################################################
+class ClientJavascript(ClientGeneric):
+    def _init_lib_(self):
+        import IPython  # local references to library
+        self.display = IPython.display
+
+    def _div_id(self):
+        """ Unique name for DIV """
+        return 'pptdiv_%s' % (str(uuid.uuid4())[:8])
+
+    def _run_js(self, script):
+        self._last_code = _html_js_div.format(id=self._div_id(), script=script)
+        self.display.display(self.display.HTML(self._last_code))
+        return None
+
+    def init_js(self):
+        return self._run_js(_js_init)
+
+    def get(self, method, **kwargs):
+        return self._run_js(_js_get.format(url=self.url(method, **kwargs)))
+
+    def post(self, method, **kwargs):
+        args = {_: kwargs[_] for _ in kwargs if kwargs[_] is not None}
+        return self._run_js(_js_post.format(url=self.url(method),
+                                            json=json.dumps(args)))
+
+    @staticmethod
+    def _read_base64(filename, delete=False):
+        with open(filename, 'rb') as f:
+            data = f.read()
+        data = base64.standard_b64encode(data)
+        if delete:
+            os.remove(filename)
+        return str(data, 'utf-8')
+
+    def upload_picture(self, filename, delete=False):
+        code = _js_upload.format(url=self.url('upload_picture'),
+                                 data=self._read_base64(filename, delete))
+        return self._run_js(code)
+
+    def post_and_figure(self, method, filename, delete=True, **kwargs):
+        """ Uploads figure to server and then call POST """
+        args = {_: kwargs[_] for _ in kwargs if kwargs[_] is not None}
+        code = _js_upload_and_post.format(url1=self.url('upload_picture'),
+                                          url2=self.url(method),
+                                          data=self._read_base64(filename, delete),
+                                          json=json.dumps(args))
+        return self._run_js(code)
+
+
+###############################################################################
+class ClientRequests(ClientGeneric):
+    def _init_lib_(self):
+        import requests  # local references to library
+        self.requests = requests
+
+    def get(self, method, **kwargs):
+        r = self.requests.get(self.url(method, **kwargs))
+        self._last_request = r
+        return r.text
+
+    def post(self, method, **kwargs):
+        args = {_: kwargs[_] for _ in kwargs if kwargs[_] is not None}
+        r = self.requests.post(self.url(method), json=args)
+        self._last_request = r
+        return r.text
+
+    def upload_picture(self, filename, delete=False):
+        with open(filename, 'rb') as f:
+            r = self.requests.post(self.url('upload_picture'),
+                                   files={'picture': f})
+        self._last_request = r
+        if delete:
+            os.remove(filename)
+        return r.text
+
+    def post_and_figure(self, method, filename, delete=True, **kwargs):
+        """ Uploads figure to server and then call POST """
+        remote_fname = self.upload_picture(filename, delete=delete)
+        return self.post(method, filename=remote_fname, **kwargs)
+
+
+###############################################################################
+def init_client(host=pyppt._LOCALHOST, port=pyppt._DEFAULT_PORT, javascript=True):
+    """ Initialize client on the remote server.
+
+        By default it will be using IPython notebook as a proxy and will embed
+        javascripts in the notebook, that will be executed in browser on the
+        local machine.
+
+        If javascript is set to False, the client will try to connect to server
+        running on the Windows machine directly. Then proper external IP address
+        (or host name / url) and port should be specified, and firewalls on both
+        client and server should be set.
+    """
+    global _client
+    if javascript:
+        _client = ClientJavascript(host, port)
+    else:
+        _client = ClientRequests(host, port)
+
+    # Hijack matplotlib
+    plt.add_figure = add_figure
+    plt.replace_figure = replace_figure
+    if javascript:
+        return _client.init_js()
+
+
+###############################################################################
+# Exposed methods
+###############################################################################
+def title_to_front(slide_no=None):
+    """ Bring title and subtitle to front """
+    return _client.get('title_to_front', slide_no=slide_no)
+
+
+def set_title(title, slide_no=None):
+    """ Set title for the slide (active or of a given number).
+        If slide contain multiple Placeholder/Title objects, only first one is set.
+    """
+    return _client.get('set_title', title=title, slide_no=slide_no)
+
+
+def set_subtitle(subtitle, slide_no=None):
+    """ Set title for the slide (active or of a given number).
+        If slide contain multiple Placeholder/Title objects, only first one is set.
+    """
+    return _client.get('set_subtitle', subtitle=subtitle, slide_no=slide_no)
+
+
+def add_slide(slide_no=None, layout_as=None):
+    """ Add slide after slide number "slide_no" with the layout as in the slide
+        number "layout_as".
+        If "slide_no" is None, new slide will be added after the active one.
+        If "layout_as" is None, new slide will have layout as the active one.
+        Returns the number of the added slide.
+    """
+    return _client.get('add_slide', slide_no=slide_no, layout_as=layout_as)
+
+
+###############################################################################
+def get_shape_positions(slide_no=None):
+    """ Get positions of all shapes in the slide.
+        Return list of lists of the format [x, y, w, h, type].
+    """
+    return _client.get('get_shape_positions', slide_no=slide_no)
+
+
+def get_image_positions(slide_no=None):
+    """ Get positions of all images in the slide.
+        Return list of lists of the format [x, y, w, h].
+    """
+    return _client.get('get_image_positions', slide_no=slide_no)
+
+
+def get_slide_dimensions():
+    """ Get width and heights of the slide """
+    return _client.get('get_slide_dimensions')
+
+
+def get_notes():
+    """ Extract notes for all slides from the presentation """
+    return _client.get('get_notes')
+
+
+###############################################################################
+###############################################################################
+def _save_figure(tight, **kwargs):
+    # Save the figure to png in temporary directory
+    fname = pyppt._temp_fname()
+    if tight:
+        # Usually is an overkill, but is needed sometimes...
+        plt.tight_layout()
+        plt.savefig(fname, bbox_inches='tight', **kwargs)
+    else:
+        plt.savefig(fname, **kwargs)
+    w, h = plt.gcf().get_size_inches()
+    return fname, w, h
+
+
+def add_figure(bbox=None, slide_no=None, keep_aspect=True, tight=True,
+               delete_placeholders=True, replace=False, **kwargs):
+    fname, w, h = _save_figure(tight, **kwargs)
+    return _client.post_and_figure('add_figure', filename=fname, bbox=bbox,
+                                   slide_no=slide_no, keep_aspect=keep_aspect,
+                                   delete_placeholders=delete_placeholders,
+                                   replace=replace, w=w, h=h)
+
+
+###############################################################################
+def replace_figure(pic_no=None, left_no=None, top_no=None, zorder_no=None,
+                   slide_no=None, keep_zorder=True, tight=True, **kwargs):
+    fname, w, h = _save_figure(tight, **kwargs)
+    return _client.post_and_figure('replace_figure', filename=fname, pic_no=pic_no,
+                                   left_no=left_no, top_no=top_no,
+                                   zorder_no=zorder_no, slide_no=slide_no,
+                                   keep_zorder=keep_zorder, w=w, h=h)
+
+
+###############################################################################
+add_figure.__doc__ = pyppt.add_figure.__doc__
+replace_figure.__doc__ = pyppt.replace_figure.__doc__

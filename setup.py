@@ -22,7 +22,11 @@ setup(name='pyppt',
       author_email=__email__,
       license='MIT License',
       packages=['pyppt'],
-      install_requires=[],
+      install_requires=['future'],
+      include_package_data=True,
+      entry_points={
+          'console_scripts': ['pyppt_server = pyppt.server:pyppt_server'],
+      },
       classifiers=['Programming Language :: Python :: 2',
                    'Programming Language :: Python :: 3', ]
       )

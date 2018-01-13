@@ -3,12 +3,33 @@
 #
 # (c) Vladimir Filimonov, December 2017
 ###############################################################################
-from win32com import client
-import matplotlib.pyplot as plt
 import numpy as np
 import warnings
 import tempfile
 import os
+import sys
+
+try:
+    from win32com import client as win32client
+except ImportError:
+    # If not on Windows
+    win32client = None
+try:
+    import matplotlib.pyplot as plt
+except RuntimeError:
+    # If the backend is not set up (like on the server)
+    plt = None
+try:
+    basestring = basestring
+except NameError:
+    unicode = str
+    basestring = (str, bytes)
+
+# Metadata to be shared between module and setup.py
+from pyppt._ver_ import __version__, __author__, __email__, __url__
+
+_LOCALHOST = '127.0.0.1'
+_DEFAULT_PORT = '8877'
 
 ###############################################################################
 # Some constants from MSDN MS Office reference
@@ -131,9 +152,19 @@ def _temp_fname():
     return name + '.png'
 
 
+def _check_win32com():
+    if win32client is None:
+        raise Exception('win32com module is not found (current platform: %s). '
+                        'Most likely the code is running on the remote server, '
+                        'and thus the core functionality will not work. '
+                        'Check the documentation for the possible solution: %s.'
+                        % (sys.platform, __url__))
+
+
 def _get_application():
     """ Get reference to PowerPoint application """
-    Application = client.Dispatch('PowerPoint.Application')
+    _check_win32com()
+    Application = win32client.Dispatch('PowerPoint.Application')
     # Make it visible
     Application.Visible = True
     return Application
@@ -315,28 +346,24 @@ def add_slide(slide_no=None, layout_as=None):
 ###############################################################################
 # Extracting metadata
 ###############################################################################
+def _round_pos(item, ndigits=1):
+    return [round(item.Left, ndigits), round(item.Top, ndigits),
+            round(item.Width, ndigits), round(item.Height, ndigits)]
+
+
 def get_shape_positions(slide_no=None):
     """ Get positions of all shapes in the slide.
         Return list of lists of the format [x, y, w, h, type].
     """
-    return [[item.Left, item.Top, item.Width, item.Height, item.Type]
+    return [_round_pos(item) + [item.Type]
             for item in _shapes(_get_slide(slide_no))]
 
 
-def get_image_positions(slide_no=None, asarray=True, decimals=1):
-    """ Get positions of all images in the slide. If necessary, rounds
-        coordinates to a given decimals (if "decimals" is not None)
+def get_image_positions(slide_no=None):
+    """ Get positions of all images in the slide.
         Return list of lists of the format [x, y, w, h].
     """
-    positions = [[item.Left, item.Top, item.Width, item.Height]
-                 for item in _pictures(_get_slide(slide_no))]
-    if asarray:
-        if decimals is not None:
-            return np.round(np.array(positions), decimals=decimals)
-        else:
-            return np.array(positions)
-    else:
-        return positions
+    return [_round_pos(item) for item in _pictures(_get_slide(slide_no))]
 
 
 def get_slide_dimensions(Presentation=None):
@@ -403,8 +430,12 @@ def _scale_bbox(bbox):
     return bbox
 
 
-def _keep_aspect(bbox):
-    w, h = np.asfarray(plt.gcf().get_size_inches())
+def _keep_aspect(bbox, w=None, h=None):
+    if w is None and h is None:
+        # Should happen only on local Windows machine
+        w, h = np.asfarray(plt.gcf().get_size_inches())
+    else:
+        w, h = float(w), float(h)
     bx, by, bw, bh = np.asfarray(bbox)
     aspect_fig = w / h
     aspect_bbox = bw / bh
@@ -431,6 +462,84 @@ def _intersection_area(a, b):
 
 
 ###############################################################################
+def _add_figure(fname, bbox=None, slide_no=None, keep_aspect=True, replace=False,
+                delete_placeholders=True, target_z_order=None, delete=True,
+                w=None, h=None):
+    """ Private method to be used both by public and server """
+    Slide = _get_slide(slide_no)
+
+    # Parse bbox name if necessary
+    use_placeholder = False
+    if bbox is None:
+        # Try to get position of the first empty placeholder for pictures
+        pictures = _placeholders_pictures(Slide, empty=True)
+        try:
+            item = pictures[0]
+            bbox = [item.Left, item.Top, item.Width, item.Height]
+            use_placeholder = True
+        except IndexError:
+            # If no placholders: use 'Center'
+            bbox = 'Center'
+    if isinstance(bbox, basestring):
+        if not _is_valid_preset_name(bbox):
+            raise ValueError('Unknown preset')
+        bbox = _parse_preset(bbox)
+    bbox = _scale_bbox(bbox)
+
+    if replace:
+        # Check if there's any figure that overlap with bbox
+        pics = _pictures(_get_slide(slide_no))
+        areas = [_intersection_area(bbox, [p.Left, p.Top, p.Width, p.Height])
+                 for p in pics]
+        pics = sorted([(x, y) for x, y in zip(areas, pics)], key=lambda _: _[0])
+        try:
+            area, pic = pics[-1]
+        except IndexError:
+            area = 0
+        if area > 0.1:  # Arbitrary - 10% of overlapping area is minimum
+            # There's overlapping picture - replace
+            target_z_order = pic.ZOrderPosition
+            bbox = [pic.Left, pic.Top, pic.Width, pic.Height]
+            pic.Delete()
+        else:
+            # Else - simply add a new one
+            replace = False
+
+    if keep_aspect:
+        bbox = _keep_aspect(bbox, w, h)
+
+    # Now insert to PowerPoint
+    if not use_placeholder:
+        if delete_placeholders:
+            _delete_empty_placeholders(Slide)
+        elif not replace:
+            items = _fill_empty_placeholders(Slide)
+    shape = Slide.Shapes.AddPicture(FileName=fname, LinkToFile=False,
+                                    SaveWithDocument=True, Left=bbox[0],
+                                    Top=bbox[1], Width=bbox[2], Height=bbox[3])
+    # Adjust z-order if necessary
+    if target_z_order is not None and target_z_order > 0:
+        while shape.ZOrderPosition > target_z_order:
+            shape.ZOrder(msoZOrderCmd['msoSendBackward'])
+    filled_bbox = [shape.Left, shape.Top, shape.Width, shape.Height]
+
+    # Check if the bbox is correctly filled.
+    if np.max(np.abs(np.array(bbox) - np.array(filled_bbox))) > 0.1:
+        # Should never happen...
+        warnings.warn('BBox of the inserted figure was not respected: '
+                      '(%.1f, %.1f, %.1f %.1f) instead of (%.1f, %.1f, %.1f %.1f).'
+                      'Perhaps, the figure was originally in a placeholder. In '
+                      'this case consider setting delete_placeholders=True.'
+                      % (shape.Left, shape.Top, shape.Width, shape.Height,
+                         bbox[0], bbox[1], bbox[2], bbox[3]))
+
+    # Clean-up
+    if not use_placeholder and not delete_placeholders and not replace:
+        _revert_filled_placeholders(items)
+    if delete:
+        os.remove(fname)
+
+
 def add_figure(bbox=None, slide_no=None, keep_aspect=True, tight=True,
                delete_placeholders=True, replace=False, **kwargs):
     """ Add current figure to the active slide (or a slide with a given number).
@@ -484,98 +593,18 @@ def add_figure(bbox=None, slide_no=None, keep_aspect=True, tight=True,
         plt.savefig(fname, bbox_inches='tight', **kwargs)
     else:
         plt.savefig(fname, **kwargs)
-
-    Slide = _get_slide(slide_no)
-
-    # Parse bbox name if necessary
-    use_placeholder = False
-    if bbox is None:
-        # Try to get position of the first empty placeholder for pictures
-        pictures = _placeholders_pictures(Slide, empty=True)
-        try:
-            item = pictures[0]
-            bbox = [item.Left, item.Top, item.Width, item.Height]
-            use_placeholder = True
-        except IndexError:
-            # If no placholders: use 'Center'
-            bbox = 'Center'
-    if isinstance(bbox, str):
-        if not _is_valid_preset_name(bbox):
-            raise ValueError('Unknown preset')
-        bbox = _parse_preset(bbox)
-    bbox = _scale_bbox(bbox)
-
-    if replace:
-        # Check if there's any figure that overlap with bbox
-        pics = _pictures(_get_slide(slide_no))
-        areas = [_intersection_area(bbox, [p.Left, p.Top, p.Width, p.Height])
-                 for p in pics]
-        pics = sorted([(x, y) for x, y in zip(areas, pics)], key=lambda _: _[0])
-        try:
-            area, pic = pics[-1]
-        except IndexError:
-            area = 0
-        if area > 0.1:  # Arbitrary - 10% of overlapping area is minimum
-            # There's overlapping picture - replace
-            target_z_order = pic.ZOrderPosition
-            bbox = [pic.Left, pic.Top, pic.Width, pic.Height]
-            pic.Delete()
-        else:
-            # Else - simply add a new one
-            replace = False
-
-    if keep_aspect:
-        bbox = _keep_aspect(bbox)
-
-    # Now insert to PowerPoint
-    if not use_placeholder and not replace:
-        if delete_placeholders:
-            _delete_empty_placeholders(Slide)
-        else:
-            items = _fill_empty_placeholders(Slide)
-    shape = Slide.Shapes.AddPicture(FileName=fname, LinkToFile=False,
-                                    SaveWithDocument=True, Left=bbox[0],
-                                    Top=bbox[1], Width=bbox[2], Height=bbox[3])
-    # Adjust z-order if necessary
-    if target_z_order is not None and target_z_order > 0:
-        while shape.ZOrderPosition > target_z_order:
-            shape.ZOrder(msoZOrderCmd['msoSendBackward'])
-    filled_bbox = [shape.Left, shape.Top, shape.Width, shape.Height]
-
-    # Check if the bbox is correctly filled.
-    if np.max(np.abs(np.array(bbox)-np.array(filled_bbox))) > 0.1:
-        # Should never happen...
-        warnings.warn('BBox of the inserted figure was not respected: '
-                      '(%.1f, %.1f, %.1f %.1f) instead of (%.1f, %.1f, %.1f %.1f)'
-                      % (shape.Left, shape.Top, shape.Width, shape.Height,
-                         bbox[0], bbox[1], bbox[2], bbox[3]))
-
-    # Clean-up
-    if not use_placeholder and not delete_placeholders and not replace:
-        _revert_filled_placeholders(items)
-    os.remove(fname)
+    # Call to private method
+    _add_figure(fname, bbox=bbox, slide_no=slide_no, keep_aspect=keep_aspect,
+                replace=replace, delete_placeholders=delete_placeholders,
+                target_z_order=target_z_order,
+                delete=True)
 
 
 ###############################################################################
-def replace_figure(pic_no=None, left_no=None, top_no=None, zorder_no=None,
-                   slide_no=None, keep_zorder=True, **kwargs):
-    """ Delete an image from the slide and add a new one on the same place
-
-        Parameters:
-            pic_no - If set, select picture by position in the list of objects
-            left_no - If set, select picture by position from the left
-            top_no - If set, select picture by position from the top
-            zorder_no - If set, select picture by z-order (from the front)
-                        Note: indexing starts at 1.
-                        Note: only one of pic_no, left_no, top_no, z_order_no
-                        could be set at the same time. If all of them are None,
-                        then default of pic_no=1 will be used.
-            slide_no - number of the slide (stating from 1), where to add image.
-                       If not specified (None), active slide will be used.
-            keep_zorder - If True, then the new figure will be moved to the
-                          z-order, as the original one.
-            **kwargs - to be passed to add_figure()
-    """
+def _replace_figure(fname, pic_no=None, left_no=None, top_no=None, zorder_no=None,
+                    slide_no=None, keep_zorder=True, keep_aspect=True,
+                    delete_placeholders=True, delete=True, w=None, h=None):
+    """ Private method to be used both by public and server """
     # Get all images
     pics = _pictures(_get_slide(slide_no))
 
@@ -616,5 +645,44 @@ def replace_figure(pic_no=None, left_no=None, top_no=None, zorder_no=None,
     pic.Delete()
     # And add a new one
     target_z_order = zorder if keep_zorder else None
-    add_figure(bbox=pos, slide_no=slide_no, target_z_order=target_z_order,
-               replace=False, **kwargs)
+    _add_figure(fname, bbox=pos, slide_no=slide_no, keep_aspect=keep_aspect,
+                replace=False, target_z_order=target_z_order,
+                delete_placeholders=delete_placeholders,
+                delete=True, w=w, h=h)
+
+
+def replace_figure(pic_no=None, left_no=None, top_no=None, zorder_no=None,
+                   slide_no=None, keep_zorder=True, keep_aspect=True,
+                   delete_placeholders=True, tight=True, **kwargs):
+    """ Delete an image from the slide and add a new one on the same place
+
+        Parameters:
+            pic_no - If set, select picture by position in the list of objects
+            left_no - If set, select picture by position from the left
+            top_no - If set, select picture by position from the top
+            zorder_no - If set, select picture by z-order (from the front)
+                        Note: indexing starts at 1.
+                        Note: only one of pic_no, left_no, top_no, z_order_no
+                        could be set at the same time. If all of them are None,
+                        then default of pic_no=1 will be used.
+            slide_no - number of the slide (stating from 1), where to add image.
+                       If not specified (None), active slide will be used.
+            keep_zorder - If True, then the new figure will be moved to the
+                          z-order, as the original one.
+            keep_aspect / delete_placeholders - to be passed to add_figure()
+            **kwargs - to be passed to plt.savefig()
+    """
+    # Save the figure to png in temporary directory
+    fname = _temp_fname()
+    if tight:
+        # Usually is an overkill, but is needed sometimes...
+        plt.tight_layout()
+        plt.savefig(fname, bbox_inches='tight', **kwargs)
+    else:
+        plt.savefig(fname, **kwargs)
+    # Call to private method
+    _replace_figure(fname, pic_no=pic_no, left_no=left_no, top_no=top_no,
+                    zorder_no=zorder_no, slide_no=slide_no,
+                    keep_zorder=keep_zorder, keep_aspect=keep_aspect,
+                    delete_placeholders=delete_placeholders,
+                    delete=True)
