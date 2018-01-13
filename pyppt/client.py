@@ -57,7 +57,7 @@ function getResults(data, div) {
     div.textContent = data;
     console.log("[pyppt] Server response: " + data);
     var kernel = Jupyter.notebook.kernel
-    if (kernel) { kernel.execute('_results_js_ = "' + data + '"'); }
+    if (kernel) { kernel.execute('_results_pyppt_js_ = "' + data + '"'); }
 };
 
 getResults("Init: OK", div);

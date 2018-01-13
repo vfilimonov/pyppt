@@ -15,7 +15,7 @@ pip install pyppt
 
 The latest version of pyppt is always available at [GitHub](https://github.com/vfilimonov/pyppt) at the `master` branch.
 
-**Note**, that both python (or IPython notebook) and PowerPoint should be running on the same Windows machine, i.e. it won't work if the notebook is hosted on a remote server or a cloud.
+**Note**, that both python (or IPython notebook) and PowerPoint should be running on the same Windows machine. For support of remote (e.g. hosted in the cloud) notebooks see section [Remote notebooks] below.
 
 ## Basic use
 
@@ -158,6 +158,83 @@ In this case output will have format of `[[x, y, width, height, type], ...]`. He
 ppt.msoShapeTypeInt[14]
 ```
 
+## Remote notebooks
+
+pyppt connects to the running instance of Microsoft Powerpoint using COM interface, thus both pyppt and Powerpoint have to be running on the same Windows machine. However it often happens that IPython notebooks are hosted on some remote server (e.g. in cloud) or in a virtual machine; so here the regular connection would not be possible. In this case connection to Microsoft office could be established within the client-server version of pyppt.
+
+Below: **local machine** denotes Windows machine where the Powerpoint is running as well as the browser which accesses IPython notebook. **Remote machine** will denote the actual server where IPython is running (e.g. hosted in the cloud).
+
+Client-server module requires a few extra dependencies. On the local machine install Flask and Flask-CORS:
+```
+pip install flask flask-cors
+```
+On the remote machine install requests, unless intend to use javascript version of pyppt-client (see below):
+```
+pip install requests
+```
+
+Two options are available: *direct connection* and *javascript embedding* for communicating between client and server. The option B (javascript embedding) should be working in all cases, but has its caveat.
+
+### Option A: Direct connection
+
+If it happens so, that the local machine is exposed to the internet and has visible external address and the remote machine could establish direct connection to local. Here're the necessary steps then:
+
+First, figure out the external IP of local machine (e.g. via [whatismyip service](http://www.whatsmyip.org/)), let it be `xxx.xxx.xxx.xxx`.
+
+Second, start pyppt server on the local machine. In the terminal run:
+```
+pyppt_server -H xxx.xxx.xxx.xxx
+```
+By default port `8877` is used, so make sure that the firewall is configured appropriately.
+
+Finally, in the IPython notebook (which is running on the remote machine) instead of `import pyppt as ppt` use:
+``` python
+import pyppt.client as ppt
+ppt.init_client('xxx.xxx.xxx.xxx')
+```
+
+Then all the functionality of the pyppt module will be available, such as `ppt.set_title()` or `ppt.add_figure()` or `plt.add_figure()`. The only one difference is that the response from the functions (e.g. `get_slide_dimensions()` or `get_image_positions()`) will be returned in string format.
+
+Note: if both local and remote machines are operating within the same local network, then the local IP address could be used as well (see the output of `ipconfig` in terminal).
+
+### Option B: Javascript embedding
+
+Usually it is the case that the local machine is hidden behind the firewall and/or NAT, and direct connection from remote server would require changes in network settings (and in corporate environment often is not possible due to security policies). In this case, the client could be talking to the server not directly, but via the browser where the IPython notebooks are displayed.
+
+Here the server on the local machine could be started without arguments (it will then listen to `localhost`):
+```
+pyppt_server
+```
+
+And in the IPython notebook (instead of `import pyppt as ppt` use:
+``` python
+import pyppt.client as ppt
+ppt.init_client(javascript=True)
+```
+After than, again all the standard functionality will be available via `ppt`.
+
+However the output response from the functions (e.g. `get_image_positions()`) will be only printed below the cell where the function is executed, and it would not be possible to assign the output to the variable. (After the cell is executed on Shift-Enter, the global variable `_results_pyppt_js_` will contain response, but *only* after the cell).
+
+Note: Option B would require IPython notebook to be [trusted](https://jupyter-notebook.readthedocs.io/en/stable/security.html), which will be normally the case: all code that and all output generated during an interactive session is trusted.
+
+
+#### Caveats of the javascript injection and workaround
+
+The way how the client-server is implemented: the HTTP server is running on the local host and waits for the commands from the client. In case of "Option B", the client injects javascript to the IPython notebook, and this javascript is executed within the browser, talking to the pyppt-server, running on the same local machine. The figure from the matplotlib is embedded within the same javascript code. This creates two difficulties of the injection:
+
+1. The figure-in-javascript will be saved together with the notebook. So you will have two pictures embedded to the notebook in case of call of `ppt.add_figure()` - the one which is rendered in HTML page *and* the one which is in the script, i.e. it will take twice the space on the drive. The notebook will be even heavier if `add_figure` is told to use the picture with high resolution (e.g. `add_figure(..., dpi=300)`).
+
+2. Because the javascript is embedded into the output of the cell, it will be added to the rendered HTML and thus executed *every time when the notebook is loaded or webpage reloaded* (e.g. on F5). I.e. if the server is running at this time - it will receive all the commands (set title, add/replace figure, add slide, ...), which will mess up the powerpoint slides which are open at the moment.
+
+Note: At the moment I don't have good solution for these caveats. The easiest workaround is: after the execution of the cell that has pyppt command changing the slides (e.g. `add_figure()`), comment the line with the pyppt call and re-evaluate the same cell.
+
+
+The chosen design of the client-server architecture is not perfect, but it has its reasons: If the local machine is not exposed to the remote, the only other option of communicating could be to start server on the remote side. However in this case either (i) a permanent connection between local client and server is needed or (ii) regular requests from local client to the server on existence of new actions to do with the powerpoint. Neitehr of the options looked good to me.
+
+Any ideas of improvement are [very welcomed](https://github.com/vfilimonov/pyppt/issues).
+
+
+
 ## Why pyppt?..
 
 ...especially since there already exists [python-pptx](https://python-pptx.readthedocs.io/en/latest/) - a great tool for automation of the slide generation. Monthly performance reports with fifteen tables and forty figures? Easy! Just make a template once and run a script every month to fill it with up-to-date information.
@@ -166,7 +243,7 @@ But my needs are slightly different. Usually there’s no "template" in research
 
 So all what I actually need is to take the active plot and stick it to the active slide; and similar tool for replacing the figure.
 
-That’s it. pyppt is not a Swiss-army-knife, it is all about using python together with the WYSWYG-editing PowerPoint presentation - about `plt.add_figure()` and `plt.replace_figure()`.
+That’s it. pyppt is not designed to be a Swiss-army-knife, it is all about using python together with the WYSWYG-editing PowerPoint presentation - about `plt.add_figure()` and `plt.replace_figure()`.
 
 
 ## What about...
@@ -179,10 +256,14 @@ That’s it. pyppt is not a Swiss-army-knife, it is all about using python toget
 
 ## Changelog
 
-### [v0.1.1] - 2018-01-08
+### [v0.1.1]
 
 * `replace_figure()` now preserves z-order of the picture.
 * `add_figure()` now has argument `replace` that allows adding figure on the first call and then replacing it on all further calls.
+
+### [v0.2]
+
+* Client-server architecture for cloud support.
 
 
 ## License
