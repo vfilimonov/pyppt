@@ -173,7 +173,7 @@ On the remote machine install requests, unless intend to use javascript version 
 pip install requests
 ```
 
-Two options are available: *direct connection* and *javascript embedding* for communicating between client and server. The option B (javascript embedding) should be working in all cases, but has its caveat.
+Two options are available: *direct connection* and *javascript embedding* for communicating between client and server. The option B (javascript embedding) should be working in all the cases.
 
 ### Option A: Direct connection
 
@@ -215,23 +215,11 @@ After than, again all the standard functionality will be available via `ppt`.
 
 However the output response from the functions (e.g. `get_image_positions()`) will be only printed below the cell where the function is executed, and it would not be possible to assign the output to the variable. (After the cell is executed on Shift-Enter, the global variable `_results_pyppt_js_` will contain response, but *only* after the cell).
 
-Note: Option B would require IPython notebook to be [trusted](https://jupyter-notebook.readthedocs.io/en/stable/security.html), which will be normally the case: all code that and all output generated during an interactive session is trusted.
+Note 1: Option B would require IPython notebook to be [trusted](https://jupyter-notebook.readthedocs.io/en/stable/security.html), which should be normally the case: all code that and all output generated during an interactive session is trusted.
 
+Note 2: If there's a problem, clearing outputs from the notebook often should be enough. If does not help, try to clear outputs, save the notebook, reload the page and run `init_client` again.
 
-#### Caveats of the javascript injection and workaround
-
-The way how the client-server is implemented: the HTTP server is running on the local host and waits for the commands from the client. In case of "Option B", the client injects javascript to the IPython notebook, and this javascript is executed within the browser, talking to the pyppt-server, running on the same local machine. The figure from the matplotlib is embedded within the same javascript code. This creates two difficulties of the injection:
-
-1. The figure-in-javascript will be saved together with the notebook. So you will have two pictures embedded to the notebook in case of call of `ppt.add_figure()` - the one which is rendered in HTML page *and* the one which is in the script, i.e. it will take twice the space on the drive. The notebook will be even heavier if `add_figure` is told to use the picture with high resolution (e.g. `add_figure(..., dpi=300)`).
-
-2. Because the javascript is embedded into the output of the cell, it will be added to the rendered HTML and thus executed *every time when the notebook is loaded or webpage reloaded* (e.g. on F5). I.e. if the server is running at this time - it will receive all the commands (set title, add/replace figure, add slide, ...), which will mess up the powerpoint slides which are open at the moment.
-
-Note: At the moment I don't have good solution for these caveats. The easiest workaround is: after the execution of the cell that has pyppt command changing the slides (e.g. `add_figure()`), comment the line with the pyppt call and re-evaluate the same cell.
-
-
-The chosen design of the client-server architecture is not perfect, but it has its reasons: If the local machine is not exposed to the remote, the only other option of communicating could be to start server on the remote side. However in this case either (i) a permanent connection between local client and server is needed or (ii) regular requests from local client to the server on existence of new actions to do with the powerpoint. Neitehr of the options looked good to me.
-
-Any ideas of improvement are [very welcomed](https://github.com/vfilimonov/pyppt/issues).
+Note 3: The present client/server design with the HTTP server on localhost and injecting javascript to the notebook might be not perfect (and required [a hack](https://github.com/vfilimonov/pyppt/issues/5) to make it smooth), but [had its reasons](https://github.com/vfilimonov/pyppt/issues/3#issuecomment-357808536). Any ideas of improvement are [very welcomed](https://github.com/vfilimonov/pyppt/issues).
 
 
 
