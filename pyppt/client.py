@@ -23,15 +23,11 @@ from pyppt._ver_ import __version__, __author__, __email__, __url__
 ###############################################################################
 # Javscript templates
 ###############################################################################
-_html_js_div = """<div id="{id}" class="pyppt"></div><script>
-var div = document.getElementById("{id}");
-console.log("[pyppt] Executing {id}...");
-{script}
-</script>
-"""
+_html_div = '<div id="{id}" class="pyppt">[pyppt] Waiting for server response...</div>'
 
-# Based on https://stackoverflow.com/questions/16245767/
 _js_init = """
+<script>
+// Based on https://stackoverflow.com/questions/16245767/
 function b64toBlob(b64Data, contentType, sliceSize) {
     contentType = contentType || '';
     sliceSize = sliceSize || 512;
@@ -53,24 +49,32 @@ function b64toBlob(b64Data, contentType, sliceSize) {
     return blob;
 };
 
-function getResults(data, div) {
-    div.textContent = data;
-    console.log("[pyppt] Server response: " + data);
+function getResults(data, div_id) {
+    // Return to IPython kernel
     var kernel = Jupyter.notebook.kernel
     if (kernel) { kernel.execute('_results_pyppt_js_ = "' + data + '"'); }
-};
 
-getResults("Init: OK", div);
+    // Wait until DIV is created and then fill it
+    var checkExist = setInterval(function() {
+       if ($('#' + div_id).length) {
+          document.getElementById(div_id).textContent = data;
+          console.log("[pyppt] Server response: " + data);
+
+          clearInterval(checkExist);
+       }
+    }, 100);
+};
+</script>
 """
 
-_js_get = """$.get("{url}", function(data){{getResults(data, div);}}); """
+_js_get = """$.get("{url}", function(data){{getResults(data, "{id}");}}); """
 
 _js_post = """$.ajax({{
     url: "{url}",
     type: "POST",
     data: '{json}',
     contentType: "application/json; charset=utf-8",
-    success: function(data){{getResults(data, div);}},
+    success: function(data){{getResults(data, "{id}");}},
 }});
 """
 
@@ -87,7 +91,7 @@ $.ajax({{
     contentType: false,
     processData: false,
     data: formData,
-    success: function(data){{getResults(data, div);}},
+    success: function(data){{getResults(data, "{id}");}},
 }});
 """
 
@@ -113,7 +117,7 @@ $.ajax({{
             type: "POST",
             data: JSON.stringify(new_data),
             contentType: "application/json; charset=utf-8",
-            success: function(data2){{getResults(data2, div);}},
+            success: function(data2){{getResults(data2, "{id}");}},
         }});
     }},
 }});
@@ -158,21 +162,27 @@ class ClientJavascript(ClientGeneric):
         """ Unique name for DIV """
         return 'pptdiv_%s' % (str(uuid.uuid4())[:8])
 
-    def _run_js(self, script):
-        self._last_code = _html_js_div.format(id=self._div_id(), script=script)
-        self.display.display(self.display.HTML(self._last_code))
+    def _run_js(self, script, **kwargs):
+        idx = self._div_id()
+        self._last_code = script.format(id=idx, **kwargs)
+
+        # Trick posted to https://stackoverflow.com/questions/48248987/
+        self.display.display(self.display.Javascript(self._last_code),
+                             display_id=idx)
+        self.display.display(self.display.HTML(_html_div.format(id=idx)),
+                             display_id=idx, update=True)
         return None
 
     def init_js(self):
-        return self._run_js(_js_init)
+        self.display.display(self.display.HTML(_js_init))
+        return None
 
     def get(self, method, **kwargs):
-        return self._run_js(_js_get.format(url=self.url(method, **kwargs)))
+        return self._run_js(_js_get, url=self.url(method, **kwargs))
 
     def post(self, method, **kwargs):
         args = {_: kwargs[_] for _ in kwargs if kwargs[_] is not None}
-        return self._run_js(_js_post.format(url=self.url(method),
-                                            json=json.dumps(args)))
+        return self._run_js(_js_post, url=self.url(method), json=json.dumps(args))
 
     @staticmethod
     def _read_base64(filename, delete=False):
@@ -184,18 +194,15 @@ class ClientJavascript(ClientGeneric):
         return str(data, 'utf-8')
 
     def upload_picture(self, filename, delete=False):
-        code = _js_upload.format(url=self.url('upload_picture'),
-                                 data=self._read_base64(filename, delete))
-        return self._run_js(code)
+        return self._run_js(_js_upload, url=self.url('upload_picture'),
+                            data=self._read_base64(filename, delete))
 
     def post_and_figure(self, method, filename, delete=True, **kwargs):
         """ Uploads figure to server and then call POST """
         args = {_: kwargs[_] for _ in kwargs if kwargs[_] is not None}
-        code = _js_upload_and_post.format(url1=self.url('upload_picture'),
-                                          url2=self.url(method),
-                                          data=self._read_base64(filename, delete),
-                                          json=json.dumps(args))
-        return self._run_js(code)
+        return self._run_js(_js_upload_and_post, url1=self.url('upload_picture'),
+                            url2=self.url(method), json=json.dumps(args),
+                            data=self._read_base64(filename, delete))
 
 
 ###############################################################################
