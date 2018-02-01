@@ -27,8 +27,8 @@ _html_div = '<div id="{id}" class="pyppt">[pyppt] Waiting for server response...
 
 _js_init = """
 <script>
-// Based on https://stackoverflow.com/questions/16245767/
 function b64toBlob(b64Data, contentType, sliceSize) {
+    // Based on https://stackoverflow.com/questions/16245767/
     contentType = contentType || '';
     sliceSize = sliceSize || 512;
 
@@ -50,7 +50,7 @@ function b64toBlob(b64Data, contentType, sliceSize) {
 };
 
 function getResults(data, div_id) {
-    // Return to IPython kernel
+    // Return results to IPython kernel
     var kernel = Jupyter.notebook.kernel
     if (kernel) { kernel.execute('_results_pyppt_js_ = "' + data + '"'); }
 

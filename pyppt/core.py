@@ -24,6 +24,10 @@ try:
 except NameError:
     unicode = str
     basestring = (str, bytes)
+try:
+    long = long
+except NameError:
+    long = int
 
 # Metadata to be shared between module and setup.py
 from pyppt._ver_ import __version__, __author__, __email__, __url__
