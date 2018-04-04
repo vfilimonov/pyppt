@@ -285,14 +285,19 @@ def set_subtitle(subtitle, slide_no=None):
     return _client.get('set_subtitle', subtitle=subtitle, slide_no=slide_no)
 
 
-def add_slide(slide_no=None, layout_as=None):
+def add_slide(slide_no=None, layout_as=None, make_active=True):
     """ Add slide after slide number "slide_no" with the layout as in the slide
         number "layout_as".
         If "slide_no" is None, new slide will be added after the active one.
         If "layout_as" is None, new slide will have layout as the active one.
         Returns the number of the added slide.
     """
-    return _client.get('add_slide', slide_no=slide_no, layout_as=layout_as)
+    return _client.get('add_slide', slide_no=slide_no, layout_as=layout_as,
+                       make_active=int(make_active))
+
+
+def goto_slide(slide_no):
+    return _client.get('goto_slide', slide_no=slide_no)
 
 
 ###############################################################################

@@ -330,12 +330,14 @@ def set_subtitle(subtitle, slide_no=None):
     warnings.warn('No subtitle placeholders were found on the given slide')
 
 
-def add_slide(slide_no=None, layout_as=None):
+def add_slide(slide_no=None, layout_as=None, make_active=True):
     """ Add slide after slide number "slide_no" with the layout as in the slide
         number "layout_as".
         If "slide_no" is None, new slide will be added after the active one.
         If "layout_as" is None, new slide will have layout as the active one.
         Returns the number of the added slide.
+        If "make_active" is True, then the newly-created slide will be brought
+        to focus.
     """
     if slide_no is None:
         slide_no = _get_slide().SlideNumber
@@ -344,7 +346,15 @@ def add_slide(slide_no=None, layout_as=None):
     Presentation = _get_active_presentation()
     pptLayout = Presentation.Slides[layout_as - 1].CustomLayout
     Slide = Presentation.Slides.AddSlide(slide_no + 1, pptLayout)
-    return Slide.SlideNumber
+    slide_no = Slide.SlideNumber
+    if make_active:
+        goto_slide(slide_no)
+    return slide_no
+
+
+def goto_slide(slide_no):
+    """ Change active slide """
+    _get_application().ActiveWindow.View.GotoSlide(slide_no)
 
 
 ###############################################################################

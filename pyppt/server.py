@@ -66,8 +66,16 @@ def add_slide():
     print('add_slide', request.args.to_dict())
     slide_no = request.args.get('slide_no', default=None, type=int)
     layout_as = request.args.get('layout_as', default=None, type=int)
-    pyppt.add_slide(layout_as=layout_as, slide_no=slide_no)
+    make_active = bool(request.args.get('make_active', default=None, type=int))
+    pyppt.add_slide(layout_as=layout_as, slide_no=slide_no, make_active=make_active)
     return 'OK'
+
+
+@app.route('/goto_slide')
+def goto_slide():
+    print('goto_slide', request.args.to_dict())
+    slide_no = request.args.get('slide_no', default=None, type=int)
+    pyppt.goto_slide(slide_no=slide_no)
 
 
 ###############################################################################
