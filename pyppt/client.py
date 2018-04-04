@@ -267,31 +267,18 @@ def init_client(host=pyppt._LOCALHOST, port=pyppt._DEFAULT_PORT, javascript=True
 # Exposed methods
 ###############################################################################
 def title_to_front(slide_no=None):
-    """ Bring title and subtitle to front """
     return _client.get('title_to_front', slide_no=slide_no)
 
 
 def set_title(title, slide_no=None):
-    """ Set title for the slide (active or of a given number).
-        If slide contain multiple Placeholder/Title objects, only first one is set.
-    """
     return _client.get('set_title', title=title, slide_no=slide_no)
 
 
 def set_subtitle(subtitle, slide_no=None):
-    """ Set title for the slide (active or of a given number).
-        If slide contain multiple Placeholder/Title objects, only first one is set.
-    """
     return _client.get('set_subtitle', subtitle=subtitle, slide_no=slide_no)
 
 
 def add_slide(slide_no=None, layout_as=None, make_active=True):
-    """ Add slide after slide number "slide_no" with the layout as in the slide
-        number "layout_as".
-        If "slide_no" is None, new slide will be added after the active one.
-        If "layout_as" is None, new slide will have layout as the active one.
-        Returns the number of the added slide.
-    """
     return _client.get('add_slide', slide_no=slide_no, layout_as=layout_as,
                        make_active=int(make_active))
 
@@ -300,32 +287,22 @@ def goto_slide(slide_no):
     return _client.get('goto_slide', slide_no=slide_no)
 
 
-###############################################################################
 def get_shape_positions(slide_no=None):
-    """ Get positions of all shapes in the slide.
-        Return list of lists of the format [x, y, w, h, type].
-    """
     return _client.get('get_shape_positions', slide_no=slide_no)
 
 
 def get_image_positions(slide_no=None):
-    """ Get positions of all images in the slide.
-        Return list of lists of the format [x, y, w, h].
-    """
     return _client.get('get_image_positions', slide_no=slide_no)
 
 
 def get_slide_dimensions():
-    """ Get width and heights of the slide """
     return _client.get('get_slide_dimensions')
 
 
 def get_notes():
-    """ Extract notes for all slides from the presentation """
     return _client.get('get_notes')
 
 
-###############################################################################
 ###############################################################################
 def _save_figure(tight, **kwargs):
     # Save the figure to png in temporary directory
@@ -349,7 +326,6 @@ def add_figure(bbox=None, slide_no=None, keep_aspect=True, tight=True,
                                    replace=replace, w=w, h=h)
 
 
-###############################################################################
 def replace_figure(pic_no=None, left_no=None, top_no=None, zorder_no=None,
                    slide_no=None, keep_zorder=True, tight=True, **kwargs):
     fname, w, h = _save_figure(tight, **kwargs)
@@ -360,5 +336,16 @@ def replace_figure(pic_no=None, left_no=None, top_no=None, zorder_no=None,
 
 
 ###############################################################################
+title_to_front.__doc__ = pyppt.title_to_front.__doc__
+set_title.__doc__ = pyppt.set_title.__doc__
+set_subtitle.__doc__ = pyppt.set_subtitle.__doc__
+add_slide.__doc__ = pyppt.add_slide.__doc__
+goto_slide.__doc__ = pyppt.goto_slide.__doc__
+
+get_shape_positions.__doc__ = pyppt.get_shape_positions.__doc__
+get_image_positions.__doc__ = pyppt.get_image_positions.__doc__
+get_slide_dimensions.__doc__ = pyppt.get_slide_dimensions.__doc__
+get_notes.__doc__ = pyppt.get_notes.__doc__
+
 add_figure.__doc__ = pyppt.add_figure.__doc__
 replace_figure.__doc__ = pyppt.replace_figure.__doc__
