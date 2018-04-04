@@ -31,6 +31,8 @@ ppt.add_figure('Center')
 ```
 this will make the histogram, save it to the temporary directory, add it to the current slide in the PowerPoint, then erases the temporary file.
 
+**NB!** `add_figure()` will not work (and raise an exception) if the focus in PowerPoint is not on the slide, but in between two slides.
+
 Full definition has the following arguments:
 ```python
 add_figure(bbox=None, slide_no=None, keep_aspect=True, tight=True, delete_placeholders=True, replace=False, **kwargs)
@@ -136,11 +138,16 @@ ppt.title_to_front(slide_no=None)
 ```
 These functions take slide number as an argument, if it is not provided, current slide will be used.
 
+Active slide could be changed using the method
+```python
+ppt.goto_slide(slide_no)
+```
+
 New slide could be added using the method:
 ```python
-ppt.add_slide(slide_no=None, layout_as=None)
+ppt.add_slide(slide_no=None, layout_as=None, make_active=True)
 ```
-where new slide will be added after the slide number `slide_no` and will have layout as the slide number `layout_as`. As elsewhere - `None` indicates the current slide. For example `add_slide(layout_as=1)` will add a new slide after the current using the title slide as a template.
+where new slide will be added after the slide number `slide_no` and will have layout as the slide number `layout_as`. As elsewhere - `None` indicates the current slide. For example `add_slide(layout_as=1)` will add a new slide after the current using the title slide as a template. Argument `make_active` defines whether the new slide should be brought to focus or not.
 
 Further some metadata could be extracted from the presentation:
 * slide dimensions in pixels: `get_slide_dimensions()`;
@@ -215,12 +222,24 @@ After than, again all the standard functionality will be available via `ppt`.
 
 However the output response from the functions (e.g. `get_image_positions()`) will be only printed below the cell where the function is executed, and it would not be possible to assign the output to the variable. (After the cell is executed on Shift-Enter, the global variable `_results_pyppt_js_` will contain response, but *only* after the cell).
 
+### Notes on the remote notebooks
+
 Note 1: Option B would require IPython notebook to be [trusted](https://jupyter-notebook.readthedocs.io/en/stable/security.html), which should be normally the case: all code that and all output generated during an interactive session is trusted.
 
 Note 2: If there's a problem, clearing outputs from the notebook often should be enough. If does not help, try to clear outputs, save the notebook, reload the page and run `init_client` again.
 
 Note 3: The present client/server design with the HTTP server on localhost and injecting javascript to the notebook might be not perfect (and required [a hack](https://github.com/vfilimonov/pyppt/issues/5) to make it smooth), but [had its reasons](https://github.com/vfilimonov/pyppt/issues/3#issuecomment-357808536). Any ideas of improvement are [very welcomed](https://github.com/vfilimonov/pyppt/issues).
 
+Note 4: Calls to the `pyppt_server` are done asynchronously, so you should not count on the order of execution on the server side (PowerPoint). This could be critical when many slides are created and filled with images in the loop - some heavy images could be processed slower than quick `add_slide()` method. For this reason it is suggested to make a delay between iterations, e.g.:
+```python
+import time
+for n in range(10):
+    plt.plot(np.cumsum(np.random.randn(1000)))
+    ppt.add_slide()
+    ppt.add_figure(dpi=300)
+    ppt.set_title('%d little drunkard boys went out to dine..' % (n+1))
+    time.sleep(1)
+```
 
 
 ## Why pyppt?..
@@ -252,6 +271,7 @@ That’s it. pyppt is not designed to be a Swiss-army-knife, it is all about usi
 ### [v0.2]
 
 * Client-server architecture for cloud support.
+* [v0.2.1] `goto_slide()` method and default argument `make_active=True` for `add_slide()`.
 
 
 ## License
