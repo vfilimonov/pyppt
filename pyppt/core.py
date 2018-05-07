@@ -163,6 +163,11 @@ def _check_win32com():
                         'and thus the core functionality will not work. '
                         'Check the documentation for the possible solution: %s.'
                         % (sys.platform, __url__))
+    try:
+        import pythoncom
+        pythoncom.CoInitialize()
+    except:
+        pass
 
 
 def _get_application():
