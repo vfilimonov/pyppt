@@ -272,6 +272,7 @@ That’s it. pyppt is not designed to be a Swiss-army-knife, it is all about usi
 
 * Client-server architecture for cloud support.
 * [v0.2.1] `goto_slide()` method and default argument `make_active=True` for `add_slide()`.
+* [v0.2.2] Fix for `CoInitialize has not been called` issue.
 
 
 ## License
